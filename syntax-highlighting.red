@@ -4,7 +4,7 @@ Red [
 	Last: 2019-01-16
 	Purpose: {Study of syntax highlighting}
 ]
-#include %../utils/info.red
+#include %../info.red
 context [
 	ws: charset " ^/^-"
 	opn: charset "[("
