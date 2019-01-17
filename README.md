@@ -12,4 +12,4 @@ Red syntax/expressions highligting
 8. No code execution. Also incremental execution TBD.
 9. Layout is done according to W10. It can show with defects on other platforms/versions.
 10. Hovering works for limited range. After ~1.5 pages hovering stops working. Reason is not yet clear. Can be a Red bug or something wrong with my code.
-11. Using `bold` in syntax highlighting style definitions will cause bias in `caret-to-offset` calculations and misplacement of hover-reactive boxes on layer above rich-text. Bug?
+11. Using `bold` in syntax highlighting style definitions has no effect on `caret-to-offset` calculations, which causes misplacement of hover-reactive boxes on layer above rich-text. Red bug?
