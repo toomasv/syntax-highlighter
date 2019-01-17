@@ -1,7 +1,7 @@
 Red [
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-16
+	Last: 2019-01-17
 	Purpose: {Study of syntax highlighting}
 ]
 #include %info.red
@@ -13,9 +13,13 @@ context [
 	brc2: union brc charset "{}"
 	skp: union ws brc
 	skp2: union skp charset "/"
+	com-check: charset {^/;}
 	br: s: s2: in-brc: none
 	opp: "[][()({}{"
 	initial-size: 800x800
+;	find-matching: func [str needle][
+;		
+;	]
 	highlight: function [s1 s2 style] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
 	br-scope: function [br][
 		i1: index? br
@@ -43,37 +47,59 @@ context [
 					]
 				| 	skip
 			]]
-			color: either empty? stack [gray + 100][i2: index? next s 255.220.220]
+			color: either empty? stack [gray + 100][i2: index? s 255.220.220]
 			repend rt/data [as-pair i1 i2 - i1 'backdrop color]
 		][
 			
 		]
 	]
-	arg-scope: func [str type /local el s1 s2 i2][
-		el: load/next str 's2
-		el2: load/next s2 's3
-		either op? attempt [get/any el2][
-			s2: arg-scope s3 none
+	left-scope: func [str /local i][i: 0
+		until [str: back str not find/match str ws]
+		either #")" = str/1 [find/reverse str "("][find/reverse/tail str skp]
+	]
+	arg-scope: func [str type /left /right /local el el2 s0 s1 s2 i2 _][
+		either left [
+			s1: left-scope str
+			s0: left-scope s1
+			el: load/next s0 '_
+			if op? attempt [get/any el][s1: arg-scope/left s0 none]
 		][
-			switch type?/word el [
-				set-word! [s2: scope s2]
-				word! [if any-function? get/any el [s2: scope str]]
-				path! [if any-function? get/any first el [s2: scope str]]
+			el: load/next str 's1
+			el2: either right [none][load/next s1 's2]
+			either op? attempt [get/any el2][
+				s1: arg-scope s2 none
+			][
+				switch type?/word el [
+					set-word! [s1: scope s1]
+					word! [if any-function? get/any el [s1: scope str]]
+					path! [if any-function? get/any first el [s1: scope str]]
+				]
 			]
 		]
-		s2
+		s1
 	]
 	scope: func [str /local fn fnc inf color arg i1 i2 s1 s2][
 		fn: load/next str 's1
 		fnc: either word? fn [fn][first fn]
 		inf: info :fnc
-		color: yello;silver + 100 ;tanned + 30
-		foreach arg inf/arg-names [
-			i2: index? s2: arg-scope s1 inf/args/:arg
+		color: yello ;silver + 100 ;tanned + 30
+		either op! = inf/type [
+			s0: arg-scope/left str none
+			i1: index? s0
+			i2: -1 + index? str
+			repend rt/data [as-pair i1 i2 - i1 'backdrop color: color - 30]
+			i2: index? s2: arg-scope/right s1 none
 			while [find ws s1/1][s1: next s1]
 			i1: index? s1
 			repend rt/data [as-pair i1 i2 - i1 'backdrop color: color - 30]
-			s1: :s2
+		][
+			foreach arg inf/arg-names [
+				i2: index? s2: arg-scope s1 inf/args/:arg
+				while [find ws s1/1][s1: next s1]
+				i1: index? s1
+				repend rt/data [as-pair i1 i2 - i1 'backdrop color: color - 30]
+				s1: :s2
+			]
 		]
 		if path? fn [
 			foreach ref next fn [
@@ -222,10 +248,10 @@ context [
 			unless event/key = 'end [
 				scroll scr/position: min max 1 switch event/key [
 					track [event/picked]
-					up left [scr/position - 1]
-					page-up page-left [scr/position - scr/page-size]
-					down right [scr/position + 1]
-					page-down page-right [scr/position + scr/page-size]
+					up [scr/position - 1]
+					page-up [scr/position - scr/page-size]
+					down [scr/position + 1]
+					page-down [scr/position + scr/page-size]
 				] scr/max-size
 			]
 			show face
