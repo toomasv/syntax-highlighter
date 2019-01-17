@@ -13,7 +13,7 @@ context [
 	brc2: union brc charset "{}"
 	skp: union ws brc
 	skp2: union skp charset "/"
-	br: s: s2: none
+	br: s: s2: in-brc: none
 	opp: "[][()({}{"
 	initial-size: 800x800
 	highlight: function [s1 s2 style] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
