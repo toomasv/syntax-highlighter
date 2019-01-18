@@ -6,14 +6,14 @@ info: func ['fn  /name /intro /args /refinements /locals /return /spec
 	intr: copy "" ars: make map! copy [] refs: make map! copy [] locs: copy [] ret: copy [] irefs: copy [] typ: ref-arg: ref-arg-type: none
 	if path? fn [irefs: copy next to-block fn fn: first fn]
 	if lit-word? fn [fn: to-word fn]
-	unless find [op! native! function! action!] type?/word get fn [
+	unless any-function? get fn [
 		cause-error 'user 'message ["Only function types accepted!"]
 	]
 	out: make map! copy []
 	specs: spec-of get fn 
 	parse specs [
 		opt [set intr string!]
-		any [set arg [word! | lit-word!] opt [set typ block!] opt string! (put ars arg either typ [typ][[any-type!]])]
+		any [set arg [word! | lit-word! | get-word!] opt [set typ block!] opt string! (put ars arg either typ [typ][[any-type!]])]
 		any [set ref refinement! [
 			if (ref <> /local) (put refs to-lit-word ref make map! copy []) 
 				opt string! 
