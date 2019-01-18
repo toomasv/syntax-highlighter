@@ -15,7 +15,7 @@ context [
 	skp: union ws brc
 	skp2: union skp charset "/"
 	com-check: charset {^/;}
-	br: s: s1: s2: i1: i2: in-brc: pos: str1: str2: blk: res: none
+	br: s: s1: s2: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: none
 	opp: "[][()({}{"
 	initial-size: 800x400
 ;	find-matching: func [str needle][
@@ -169,9 +169,10 @@ context [
 	] :collect
 	scroll: func [pos][
 		rt/offset: layer/offset: as-pair 0 pos - 1 * negate rich-text/line-height? rt 1
+		show bs
 	]
 	system/view/auto-sync?: off
-	view/options [
+	view/flags/options [
 		backdrop white
 		files: drop-list 200 with [data: read %.] 
 		on-change [
@@ -247,6 +248,16 @@ context [
 					size: initial-size - 15x0
 					data: []
 				]
+				;on-mid-down [wheel-pos: event/offset] ; TBD?
+				;all-over on-over [
+				;	if event/mid-down? [
+				;		rt/offset: layer/offset: as-pair 0 
+				;			max 
+				;				min 0 rt/offset/y + (wheel-pos/y - event/offset/y) 
+				;				negate rt/size/y - bs/size/y
+				;		show bs
+				;	]
+				;]
 				at 0x0 layer: box with [
 					size: initial-size - 15x0
 				] 
@@ -312,9 +323,20 @@ context [
 					page-down [scr/position + scr/page-size]
 				] scr/max-size
 			]
-			show face
 		]
+		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size + 1]
 		at 0x0 tip: box "" 350x100 left linen hidden
 		do [rt/parent: bs layer/parent: bs]
-	][offset: 300x30]
+	] 'resize [
+		offset: 300x30
+		actors: object [
+			on-resizing: func [face event][
+				bs/size: face/size - 20x60
+				rt/size/x: layer/size/x: bs/size/x - 15
+				scr/max-size: rich-text/line-count? rt
+				scr/page-size: bs/size/y / rich-text/line-height? rt 1
+				show bs
+			]
+		]
+	]
 ]
