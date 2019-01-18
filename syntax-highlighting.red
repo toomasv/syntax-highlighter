@@ -107,7 +107,6 @@ context [
 			repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
 		][
 			foreach arg inf/arg-names [
-				reduce [arg copy/part s1 10]
 				i2: index? s2: arg-scope s1 inf/args/:arg
 				while [find ws s1/1][s1: next s1]
 				i1: index? s1
