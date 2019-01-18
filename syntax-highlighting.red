@@ -1,26 +1,39 @@
 Red [
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-17
+	Last: 2019-01-18
 	Purpose: {Study of syntax highlighting}
 ]
-#include %info.red
+do %info.red
 context [
 	ws: charset " ^/^-"
 	opn: charset "[("
 	cls: charset ")]"
+	cls2: union ws cls
 	brc: union opn cls
 	brc2: union brc charset "{}"
 	skp: union ws brc
 	skp2: union skp charset "/"
 	com-check: charset {^/;}
-	br: s: s2: in-brc: none
+	br: s: s1: s2: i1: i2: in-brc: pos: str1: str2: blk: res: none
 	opp: "[][()({}{"
-	initial-size: 800x800
+	initial-size: 800x400
 ;	find-matching: func [str needle][
 ;		
 ;	]
 	highlight: function [s1 s2 style] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
+	skip-some: func [str chars][while [find/match str chars][str: next str] str]
+	count-lines: function [pos][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
+	move-backdrop: func [str][
+		i2: index? str2: arg-scope str none
+		clear pos
+		repend rt/data [as-pair i1 i2 - i1 'backdrop sky]
+		if (count-lines str2) > (scr/position + scr/page-size)[
+			scr/position: count-lines str
+			rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+		]
+		show bs
+	]
 	br-scope: function [br][
 		i1: index? br
 		stack: append clear [] br/1
@@ -66,11 +79,11 @@ context [
 		][
 			el: load/next str 's1
 			el2: either right [none][load/next s1 's2]
-			either op? attempt [get/any el2][
+			either all [word? el2 op? attempt/safer [get/any el2]][
 				s1: arg-scope s2 none
 			][
 				switch type?/word el [
-					set-word! [s1: scope s1]
+					set-word! set-path! [s1: arg-scope s1 none]
 					word! [if any-function? get/any el [s1: scope str]]
 					path! [if any-function? get/any first el [s1: scope str]]
 				]
@@ -78,26 +91,27 @@ context [
 		]
 		s1
 	]
-	scope: func [str /local fn fnc inf color arg i1 i2 s1 s2][
+	scope: func [str /local /color col fn fnc inf clr arg i1 i2 s1 s2][
 		fn: load/next str 's1
 		fnc: either word? fn [fn][first fn]
 		inf: info :fnc
-		color: yello ;silver + 100 ;tanned + 30
+		clr: any [col yello] 
 		either op! = inf/type [
 			s0: arg-scope/left str none
 			i1: index? s0
 			i2: -1 + index? str
-			repend rt/data [as-pair i1 i2 - i1 'backdrop color: color - 30]
+			repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
 			i2: index? s2: arg-scope/right s1 none
 			while [find ws s1/1][s1: next s1]
 			i1: index? s1
-			repend rt/data [as-pair i1 i2 - i1 'backdrop color: color - 30]
+			repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
 		][
 			foreach arg inf/arg-names [
+				reduce [arg copy/part s1 10]
 				i2: index? s2: arg-scope s1 inf/args/:arg
 				while [find ws s1/1][s1: next s1]
 				i1: index? s1
-				repend rt/data [as-pair i1 i2 - i1 'backdrop color: color - 30]
+				repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
 				s1: :s2
 			]
 		]
@@ -108,7 +122,7 @@ context [
 						i2: index? s2: arg-scope s1 type
 						while [find ws s1/1][s1: next s1]
 						i1: index? s1
-						repend rt/data [as-pair i1 i2 - i1 'backdrop color: color - 30]
+						repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
 						s1: :s2
 					]
 				]
@@ -175,12 +189,57 @@ context [
 			clear at layer/draw 5
 			collect/into [parse rt/data box-rule] layer/draw
 			show bs
+			if run/data [run/actors/on-change run none]
 		]
 		button "Dir..." [
 			files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
 			clear rt/data clear rt/text
 		] 
-		panel 200x30 white [origin 0x0 help: radio "Helpstring" data yes expr: radio "Expressions"]
+		panel 150x30 white [
+			origin 0x0 
+			help: radio 45 "Help" data yes 
+			expr: radio 45 "Expr" 
+			run: radio 45 "Step" [
+				either face/data [
+					str1: head rt/text
+					scr/position: 1
+					rt/offset: layer/offset: 0x0
+					i2: index? str2: arg-scope str1 none
+					pos: tail rt/data
+					repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
+				][
+					clear pos
+				]
+				show bs
+			]
+		]
+		button "Do" [
+			do load copy/part str1 str2
+			while [find/match str2 cls2][str2: next str2]
+			while [str1/1 = #";"][str2: arg-scope str2 none]
+			i1: index? str1: str2
+			move-backdrop str2
+		]
+		button "Skip" [
+			i1: index? str1: find/tail str1 skp
+			move-backdrop str1
+		]
+		button "Next" [
+			str2: skip-some str2 cls2
+			while [str2/1 = #";"][
+				str2: arg-scope str2 none
+				str2: skip-some str2 cls2
+			]
+			i1: index? str1: str2
+			move-backdrop str2
+		]
+		button "Into" [
+			if find/match opn str1/1 [
+				i1: index? str1: next str1
+				str1: skip-some str1 ws
+				move-backdrop str1
+			]
+		]
 		return bs: base white with [
 			size: initial-size - 15x0
 			pane: layout/only [
