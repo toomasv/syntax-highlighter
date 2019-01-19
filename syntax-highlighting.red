@@ -199,74 +199,78 @@ context [
 	system/view/auto-sync?: off
 	view/flags/options/tight [
 		backdrop white
-		panel 800x50 [origin 0x0 options: panel 740x50 [
-			panel [
-				origin 0x0 
-				files: drop-list 200 with [data: read %.] 
-				on-change [
-					rt/offset: layer/offset: 0x0
-					rt/text: read pick face/data face/selected
-					show rt
-					rt/size/y: layer/size/y: second size-text rt
-					scr/max-size: rich-text/line-count? rt
-					scr/position: 1
-					scr/page: 1
-					scr/page-size: bs/size/y / rich-text/line-height? rt 1
-					clear steps
-					clear rt/data
-					collect/into [parse rt/text rule] rt/data
-					clear at layer/draw 5
-					collect/into [parse rt/data box-rule] layer/draw
-					show bs
-					if step/data [step/actors/on-change step none]
+		panel 800x50 [
+			origin 0x0 
+			options: panel 740x50 [
+				panel [
+					origin 0x0 
+					files: drop-list 200 with [data: read %.] 
+					on-change [
+						rt/offset: layer/offset: 0x0
+						rt/text: read pick face/data face/selected
+						show rt
+						rt/size/y: layer/size/y: second size-text rt
+						scr/max-size: rich-text/line-count? rt
+						scr/position: 1
+						scr/page: 1
+						scr/page-size: bs/size/y / rich-text/line-height? rt 1
+						clear steps
+						clear rt/data
+						collect/into [parse rt/text rule] rt/data
+						clear at layer/draw 5
+						collect/into [parse rt/data box-rule] layer/draw
+						show bs
+						if step/data [step/actors/on-change step none]
+					]
+					button "Dir..." [
+						files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
+						clear rt/data clear rt/text
+					] 
 				]
-				button "Dir..." [
-					files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
-					clear rt/data clear rt/text
-				] 
-			]
-			panel 150x30 [
-				origin 0x0 
-				help: radio 45 "Help" data yes 
-				expr: radio 45 "Expr" 
-				step: radio 45 "Step" [
-					either face/data [
-						either empty? steps [
-							str1: head rt/text
-							scr/position: 1
-							rt/offset: layer/offset: 0x0
-							i2: index? str2: arg-scope str1 none
-							pos: tail rt/data
-							repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
+				panel 150x30 [
+					origin 0x0 
+					help: radio 45 "Help" data yes 
+					expr: radio 45 "Expr" 
+					step: radio 45 "Step" [
+						either face/data [
+							either empty? steps [
+								str1: head rt/text
+								scr/position: 1
+								rt/offset: layer/offset: 0x0
+								i2: index? str2: arg-scope str1 none
+								pos: tail rt/data
+								repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
+							][
+								prev-step
+							]
 						][
-							prev-step
+							clear pos
+							repend steps [str1 str2]
 						]
-					][
-						clear pos
+						show bs
+					]
+				]
+				panel [
+					origin 0x0
+					button "Prev" [prev-step]
+					button "Eval" [do copy/part str1 str2 next-step]
+					button "Skip" [next-step]
+					button "Into" [
 						repend steps [str1 str2]
+						either find/match opn str1/1 [
+							i1: index? str1: next str1
+							str1: skip-some str1 ws
+						][
+							i1: index? str1: find/tail str1 skp
+						]
+						move-backdrop str1
 					]
-					show bs
 				]
 			]
-			panel [
-				origin 0x0
-				button "Prev" [prev-step]
-				button "Eval" [do copy/part str1 str2 next-step]
-				button "Skip" [next-step]
-				button "Into" [
-					repend steps [str1 str2]
-					either find/match opn str1/1 [
-						i1: index? str1: next str1
-						str1: skip-some str1 ws
-					][
-						i1: index? str1: find/tail str1 skp
-					]
-					move-backdrop str1
-				]
-			]
-		]]
+		]
 		space 0x0
-		return pad 10x10 bs: base white with [
+		return pad 10x10 
+		bs: base white with [
 			size: initial-size ;- 15x0
 			pane: layout/only [
 				origin 0x0 
@@ -351,6 +355,21 @@ context [
 			]
 		]
 		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size + 1]
+		on-down [
+			if step/data [
+				clear pos
+				repend steps [str1 str2]
+				i1: index? str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp
+				i2: index? str2: arg-scope str1 none
+				print [event/offset i1 i2 mold copy/part str1 str2]
+				repend rt/data [as-pair i1 i2 - i1 'backdrop sky]
+				if (count-lines str2) > (scr/position + scr/page-size)[
+					scr/position: count-lines str1
+					rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+				]
+				show bs
+			]
+		]
 		at 0x0 tip: box "" 350x50 left linen hidden
 		do [rt/parent: bs layer/parent: bs]
 	] 'resize [
