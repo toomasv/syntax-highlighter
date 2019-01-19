@@ -361,7 +361,6 @@ context [
 				repend steps [str1 str2]
 				i1: index? str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp
 				i2: index? str2: arg-scope str1 none
-				print [event/offset i1 i2 mold copy/part str1 str2]
 				repend rt/data [as-pair i1 i2 - i1 'backdrop sky]
 				if (count-lines str2) > (scr/position + scr/page-size)[
 					scr/position: count-lines str1
