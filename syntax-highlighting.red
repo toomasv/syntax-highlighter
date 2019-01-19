@@ -231,14 +231,19 @@ context [
 				expr: radio 45 "Expr" 
 				step: radio 45 "Step" [
 					either face/data [
-						str1: head rt/text
-						scr/position: 1
-						rt/offset: layer/offset: 0x0
-						i2: index? str2: arg-scope str1 none
-						pos: tail rt/data
-						repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
+						either empty? steps [
+							str1: head rt/text
+							scr/position: 1
+							rt/offset: layer/offset: 0x0
+							i2: index? str2: arg-scope str1 none
+							pos: tail rt/data
+							repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
+						][
+							prev-step
+						]
 					][
 						clear pos
+						repend steps [str1 str2]
 					]
 					show bs
 				]
@@ -363,7 +368,7 @@ context [
 					max-y: 0
 					max-x: 0 
 					cur-y: 10
-					options/size/x: face/size/x - 20
+					options/size/x: face/size/x; - 20
 					forall opts [
 						if 1 < length? opts [
 							max-x: max max-x lim x opts/1
