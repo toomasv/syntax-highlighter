@@ -1,7 +1,7 @@
 Red [
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-18
+	Last: 2019-01-19
 	Purpose: {Study of syntax highlighting}
 ]
 do %info.red
@@ -15,7 +15,7 @@ context [
 	skp: union ws brc
 	skp2: union skp charset "/"
 	com-check: charset {^/;}
-	br: s: s1: s2: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: none
+	br: s: s1: s2: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: none
 	opp: "[][()({}{"
 	initial-size: 800x400
 ;	find-matching: func [str needle][
@@ -172,76 +172,83 @@ context [
 		show bs
 	]
 	system/view/auto-sync?: off
-	view/flags/options [
+	view/flags/options/tight [
 		backdrop white
-		files: drop-list 200 with [data: read %.] 
-		on-change [
-			rt/offset: layer/offset: 0x0
-			rt/text: read pick face/data face/selected
-			show rt
-			rt/size/y: layer/size/y: second size-text rt
-			scr/max-size: rich-text/line-count? rt
-			scr/position: 1
-			scr/page: 1
-			scr/page-size: bs/size/y / rich-text/line-height? rt 1
-			clear rt/data
-			collect/into [parse rt/text rule] rt/data
-			clear at layer/draw 5
-			collect/into [parse rt/data box-rule] layer/draw
-			show bs
-			if run/data [run/actors/on-change run none]
-		]
-		button "Dir..." [
-			files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
-			clear rt/data clear rt/text
-		] 
-		panel 150x30 white [
-			origin 0x0 
-			help: radio 45 "Help" data yes 
-			expr: radio 45 "Expr" 
-			run: radio 45 "Step" [
-				either face/data [
-					str1: head rt/text
-					scr/position: 1
+		panel 800x50 [origin 0x0 options: panel 670x50 [
+			panel [
+				origin 0x0 
+				files: drop-list 200 with [data: read %.] 
+				on-change [
 					rt/offset: layer/offset: 0x0
-					i2: index? str2: arg-scope str1 none
-					pos: tail rt/data
-					repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
-				][
-					clear pos
+					rt/text: read pick face/data face/selected
+					show rt
+					rt/size/y: layer/size/y: second size-text rt
+					scr/max-size: rich-text/line-count? rt
+					scr/position: 1
+					scr/page: 1
+					scr/page-size: bs/size/y / rich-text/line-height? rt 1
+					clear rt/data
+					collect/into [parse rt/text rule] rt/data
+					clear at layer/draw 5
+					collect/into [parse rt/data box-rule] layer/draw
+					show bs
+					if run/data [run/actors/on-change run none]
 				]
-				show bs
+				button "Dir..." [
+					files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
+					clear rt/data clear rt/text
+				] 
 			]
-		]
-		button "Do" [
-			do load copy/part str1 str2
-			while [find/match str2 cls2][str2: next str2]
-			while [str1/1 = #";"][str2: arg-scope str2 none]
-			i1: index? str1: str2
-			move-backdrop str2
-		]
-		button "Skip" [
-			i1: index? str1: find/tail str1 skp
-			move-backdrop str1
-		]
-		button "Next" [
-			str2: skip-some str2 cls2
-			while [str2/1 = #";"][
-				str2: arg-scope str2 none
-				str2: skip-some str2 cls2
+			panel 150x30 [
+				origin 0x0 
+				help: radio 45 "Help" data yes 
+				expr: radio 45 "Expr" 
+				run: radio 45 "Step" [
+					either face/data [
+						str1: head rt/text
+						scr/position: 1
+						rt/offset: layer/offset: 0x0
+						i2: index? str2: arg-scope str1 none
+						pos: tail rt/data
+						repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
+					][
+						clear pos
+					]
+					show bs
+				]
 			]
-			i1: index? str1: str2
-			move-backdrop str2
-		]
-		button "Into" [
-			if find/match opn str1/1 [
-				i1: index? str1: next str1
-				str1: skip-some str1 ws
-				move-backdrop str1
+			panel [
+				origin 0x0
+				button "Eval" [
+					do load copy/part str1 str2
+					while [find/match str2 cls2][str2: next str2]
+					while [str1/1 = #";"][str2: arg-scope str2 none]
+					i1: index? str1: str2
+					move-backdrop str2
+				]
+				button "Skip" [
+					str2: skip-some str2 cls2
+					while [str2/1 = #";"][
+						str2: arg-scope str2 none
+						str2: skip-some str2 cls2
+					]
+					i1: index? str1: str2
+					move-backdrop str2
+				]
+				button "Into" [
+					either find/match opn str1/1 [
+						i1: index? str1: next str1
+						str1: skip-some str1 ws
+					][
+						i1: index? str1: find/tail str1 skp
+					]
+					move-backdrop str1
+				]
 			]
-		]
-		return bs: base white with [
-			size: initial-size - 15x0
+		]]
+		space 0x0
+		return pad 10x10 bs: base white with [
+			size: initial-size ;- 15x0
 			pane: layout/only [
 				origin 0x0 
 				rt: rich-text "" with [
@@ -325,17 +332,47 @@ context [
 			]
 		]
 		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size + 1]
-		at 0x0 tip: box "" 350x100 left linen hidden
+		at 0x0 tip: box "" 350x50 left linen hidden
 		do [rt/parent: bs layer/parent: bs]
 	] 'resize [
-		offset: 300x30
+		offset: 300x50
 		actors: object [
-			on-resizing: func [face event][
-				bs/size: face/size - 20x60
-				rt/size/x: layer/size/x: bs/size/x - 15
+			max-x: max-y: 0
+			cur-y: 10
+			lim: func [:z face][face/offset/:z + face/size/:z]
+			opts: options/pane
+			on-resizing: func [face event /local _last diff][
+				if any [
+					20 > diff: face/size/x - options/size/x
+					all [diff > 20 options/size/x < 670]
+				][
+					max-y: 0
+					max-x: 0 
+					cur-y: 10
+					options/size/x: face/size/x - 20
+					;print "-----------"
+					forall opts [
+						if 1 < length? opts [
+							max-x: max max-x lim x opts/1
+							max-y: max max-y lim y opts/1
+							;print [opts/1/type max-x max-y]
+							opts/2/offset: either options/size/x - opts/2/size/x - 20 < lim x opts/1 [
+								max-x: 0
+								as-pair 10 cur-y: max-y + 10
+							][
+								as-pair max-x + 10 cur-y 
+							]
+						]
+					] 
+					options/parent/size/y: options/size/y: 10 + lim y last opts
+				]
+				options/parent/size/x: face/size/x
+				bs/offset/y: options/offset/y + options/size/y + 10
+				bs/size: face/size - 12x60
+				rt/size/x: layer/size/x: bs/size/x - 18
 				scr/max-size: rich-text/line-count? rt
 				scr/page-size: bs/size/y / rich-text/line-height? rt 1
-				show bs
+				show face
 			]
 		]
 	]
