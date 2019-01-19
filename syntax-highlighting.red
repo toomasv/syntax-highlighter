@@ -24,6 +24,15 @@ context [
 	highlight: function [s1 s2 style] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
 	skip-some: func [str chars][while [find/match str chars][str: next str] str]
 	count-lines: function [pos][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
+	next-step: does [
+		str2: skip-some str2 cls2
+		while [str2/1 = #";"][
+			str2: arg-scope str2 none
+			str2: skip-some str2 cls2
+		]
+		i1: index? str1: str2
+		move-backdrop str2
+	]
 	move-backdrop: func [str][
 		i2: index? str2: arg-scope str none
 		clear pos
@@ -192,7 +201,7 @@ context [
 					clear at layer/draw 5
 					collect/into [parse rt/data box-rule] layer/draw
 					show bs
-					if run/data [run/actors/on-change run none]
+					if step/data [step/actors/on-change step none]
 				]
 				button "Dir..." [
 					files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
@@ -203,7 +212,7 @@ context [
 				origin 0x0 
 				help: radio 45 "Help" data yes 
 				expr: radio 45 "Expr" 
-				run: radio 45 "Step" [
+				step: radio 45 "Step" [
 					either face/data [
 						str1: head rt/text
 						scr/position: 1
@@ -220,20 +229,11 @@ context [
 			panel [
 				origin 0x0
 				button "Eval" [
-					do load copy/part str1 str2
-					while [find/match str2 cls2][str2: next str2]
-					while [str1/1 = #";"][str2: arg-scope str2 none]
-					i1: index? str1: str2
-					move-backdrop str2
+					do copy/part str1 str2
+					next-step
 				]
 				button "Skip" [
-					str2: skip-some str2 cls2
-					while [str2/1 = #";"][
-						str2: arg-scope str2 none
-						str2: skip-some str2 cls2
-					]
-					i1: index? str1: str2
-					move-backdrop str2
+					next-step
 				]
 				button "Into" [
 					either find/match opn str1/1 [
@@ -350,12 +350,10 @@ context [
 					max-x: 0 
 					cur-y: 10
 					options/size/x: face/size/x - 20
-					;print "-----------"
 					forall opts [
 						if 1 < length? opts [
 							max-x: max max-x lim x opts/1
 							max-y: max max-y lim y opts/1
-							;print [opts/1/type max-x max-y]
 							opts/2/offset: either options/size/x - opts/2/size/x - 20 < lim x opts/1 [
 								max-x: 0
 								as-pair 10 cur-y: max-y + 10
