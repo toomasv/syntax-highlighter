@@ -15,8 +15,9 @@ context [
 	skp: union ws brc
 	skp2: union skp charset "/"
 	com-check: charset {^/;}
-	br: s: s1: s2: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: none
 	opp: "[][()({}{"
+	br: s: s1: s2: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: none
+	steps: clear []
 	initial-size: 800x400
 ;	find-matching: func [str needle][
 ;		
@@ -24,7 +25,22 @@ context [
 	highlight: function [s1 s2 style] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
 	skip-some: func [str chars][while [find/match str chars][str: next str] str]
 	count-lines: function [pos][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
+	prev-step: does [
+		unless empty? steps [
+			set [str1 str2] take/last/part steps 2
+			i1: index? str1
+			i2: index? str2
+			clear pos
+			repend rt/data [as-pair i1 i2 - i1 'backdrop sky]
+			if (count-lines str1) < scr/position [
+				scr/position: count-lines str1
+				rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+			]
+			show bs
+		]
+	]
 	next-step: does [
+		repend steps [str1 str2]
 		str2: skip-some str2 cls2
 		while [str2/1 = #";"][
 			str2: arg-scope str2 none
@@ -183,7 +199,7 @@ context [
 	system/view/auto-sync?: off
 	view/flags/options/tight [
 		backdrop white
-		panel 800x50 [origin 0x0 options: panel 670x50 [
+		panel 800x50 [origin 0x0 options: panel 740x50 [
 			panel [
 				origin 0x0 
 				files: drop-list 200 with [data: read %.] 
@@ -196,6 +212,7 @@ context [
 					scr/position: 1
 					scr/page: 1
 					scr/page-size: bs/size/y / rich-text/line-height? rt 1
+					clear steps
 					clear rt/data
 					collect/into [parse rt/text rule] rt/data
 					clear at layer/draw 5
@@ -228,14 +245,11 @@ context [
 			]
 			panel [
 				origin 0x0
-				button "Eval" [
-					do copy/part str1 str2
-					next-step
-				]
-				button "Skip" [
-					next-step
-				]
+				button "Prev" [prev-step]
+				button "Eval" [do copy/part str1 str2 next-step]
+				button "Skip" [next-step]
 				button "Into" [
+					repend steps [str1 str2]
 					either find/match opn str1/1 [
 						i1: index? str1: next str1
 						str1: skip-some str1 ws
@@ -343,8 +357,8 @@ context [
 			opts: options/pane
 			on-resizing: func [face event /local _last diff][
 				if any [
-					20 > diff: face/size/x - options/size/x
-					all [diff > 20 options/size/x < 670]
+					0 > diff: face/size/x - options/size/x
+					all [diff > 0 options/size/x < 740]
 				][
 					max-y: 0
 					max-x: 0 
