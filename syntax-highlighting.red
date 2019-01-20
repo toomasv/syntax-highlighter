@@ -273,6 +273,7 @@ context [
 					button "Dir..." [
 						files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
 						clear rt/data clear rt/text
+						show files
 					] 
 				]
 				panel 150x30 [
