@@ -1,7 +1,7 @@
 Red [
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-19
+	Last: 2019-01-20
 	Purpose: {Study of syntax highlighting}
 ]
 do %info.red
@@ -14,9 +14,11 @@ context [
 	brc2: union brc charset "{}"
 	skp: union ws brc
 	skp2: union skp charset "/"
+	skp3: union skp2 charset ":"
+	skp4: union skp3 charset "'"
 	com-check: charset {^/;}
 	opp: "[][()({}{"
-	br: s: s1: s2: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: none
+	br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-count: none
 	steps: clear []
 	initial-size: 800x400
 ;	find-matching: func [str needle][
@@ -161,19 +163,19 @@ context [
 	|	#";" [if (s2: find s newline) | (s2: tail s)] (highlight s s2 reduce ['italic beige - 50]) :s2
 	|	(el: load/next s 's2)(
 			case [
-				string? el 		[highlight s s2 gray]
-				any-string? el 	[highlight s s2 orange]
+				string? el		[highlight s s2 gray]
+				any-string? el	[highlight s s2 orange]
 				refinement? el	[highlight s s2 papaya]
-				word? el 		[case [
+				word? el		[case [
 					any-function? get/any el [highlight s s2 brick]; reduce ['bold blue]]
 					immediate? get/any el [highlight s s2 leaf]
 				]]
-				path? el 		[if any-function? get/any el/1 [highlight s s2: find s #"/" brick]];reduce ['bold blue]]]
-				any-word? el 	[highlight s s2 navy]
-				any-path? el 	[highlight s s2 water]
-				number? el 		[highlight s s2 mint]
-				scalar? el 		[highlight s s2 teal]
-				immediate? el 	[highlight s s2 leaf]
+				path? el		[if any-function? get/any el/1 [highlight s s2: find s #"/" brick]];reduce ['bold blue]]]
+				any-word? el	[highlight s s2 navy]
+				any-path? el	[highlight s s2 water]
+				number? el		[highlight s s2 mint]
+				scalar? el		[highlight s s2 teal]
+				immediate? el	[highlight s s2 leaf]
 			]
 		) :s2
 	]]
@@ -195,6 +197,51 @@ context [
 	scroll: func [pos][
 		rt/offset: layer/offset: as-pair 0 pos - 1 * negate rich-text/line-height? rt 1
 		show bs
+	]
+	find-menu: ["Show" shw "Prev" prv "Next" nxt]
+	find-word: func [event][
+		switch event/picked [
+			shw [
+				clear pos
+				i0: index? str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp4
+				str2: find str1 skp3
+				elem: copy/part str1 str2
+				str1: rt/text
+				len: length? elem
+				while [
+					str1: find/tail str1 elem
+				][
+					if all [
+						probe any [attempt [find skp4 probe first skip str1 -1 - len] head? skip str1 0 - len]
+						probe any [attempt [find skp3 probe first str1] tail? str1]
+					][
+						i1: index? str1
+						repend rt/data [as-pair i: i1 - len len 'backdrop either i = i0 [0.200.0][100.255.100]]
+					]
+				]
+			]
+			prv nxt [
+				prv: event/picked = 'prv
+				pos1: find rt/data [backdrop 0.200.0]
+				pos1/2: 100.255.100
+				pos1: skip pos1 pick [-2 4] prv
+				either prv [
+					unless pos1/1 = 100.255.100 [pos1: next find/last rt/data 'backdrop]
+				][
+					if empty? pos1 [pos1: next find rt/data 'backdrop]
+				]
+				pos1/1: 0.200.0
+				line-count: count-lines at rt/text pos1/-2/1
+				if any [
+					line-count < (scr/position + 1)
+					line-count > (scr/position + scr/page-size - 1)
+				][
+					scr/position: max 1 line-count - (scr/page-size / 3) ;get pick [+ -] prv
+					rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+				]
+			]
+		]
+		show event/face/parent
 	]
 	system/view/auto-sync?: off
 	view/flags/options/tight [
@@ -219,6 +266,7 @@ context [
 						collect/into [parse rt/text rule] rt/data
 						clear at layer/draw 5
 						collect/into [parse rt/data box-rule] layer/draw
+						pos: tail rt/data
 						show bs
 						if step/data [step/actors/on-change step none]
 					]
@@ -232,19 +280,19 @@ context [
 					help: radio 45 "Help" data yes 
 					expr: radio 45 "Expr" 
 					step: radio 45 "Step" [
+						clear pos
 						either face/data [
 							either empty? steps [
 								str1: head rt/text
 								scr/position: 1
 								rt/offset: layer/offset: 0x0
 								i2: index? str2: arg-scope str1 none
-								pos: tail rt/data
+								;pos: tail rt/data
 								repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
 							][
 								prev-step
 							]
 						][
-							clear pos
 							repend steps [str1 str2]
 						]
 						show bs
@@ -254,7 +302,7 @@ context [
 					origin 0x0
 					button "Prev" [prev-step]
 					button "Eval" [do copy/part str1 str2 next-step]
-					button "Skip" [next-step]
+					button "Next" [next-step]
 					button "Into" [
 						repend steps [str1 str2]
 						either find/match opn str1/1 [
@@ -277,7 +325,9 @@ context [
 				rt: rich-text "" with [
 					size: initial-size - 15x0
 					data: []
+					menu: find-menu
 				]
+				on-menu [find-word event]; show rt]
 				;on-mid-down [wheel-pos: event/offset] ; TBD?
 				;all-over on-over [
 				;	if event/mid-down? [
@@ -290,8 +340,10 @@ context [
 				;]
 				at 0x0 layer: box with [
 					size: initial-size - 15x0
+					menu: find-menu
 				] 
 				draw [pen off fill-pen 0.0.0.254]
+				on-menu [find-word event]; show face]
 				on-over [
 					either event/away? [
 						case [
