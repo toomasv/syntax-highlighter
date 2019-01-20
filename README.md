@@ -19,6 +19,6 @@ Red syntax/expressions highligting
   * Back-stepping added 19.01
   * Step-selection by mouse click 19.01
   * Simple search added 20.01. Use contextual menu in "Help" mode. Pointing on element, choose "Show". For navigation between highlighted elements, select "Next" or "Prev".
-11. Layout is done according to W10. It can show with defects on other platforms/versions.
+11. Layout is done according to W10. It may show with defects on other platforms/versions.
 12. Hovering works for limited range. After ~1.5 pages hovering stops working. Reason is not yet clear. Can be a Red bug or something wrong with my code.
 13. Using `bold` in syntax highlighting style definitions has no effect on `caret-to-offset` calculations, which causes misplacement of hover-reactive boxes on layer above rich-text. Red bug?
