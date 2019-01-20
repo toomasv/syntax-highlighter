@@ -13,7 +13,7 @@ Red syntax/expressions highligting
 7. No error-handling. TBD
 8. No comments :). TBD
 9. No code execution. Also incremental execution TBD. 
-  * First draft done 18.01
+  * First draft done 18.01. (In "Step" mode use "Eval" button to evaluate highlighted expression)
 10. Navigation by scroller only. Wheeling and arrow-nav TBD. 
   * Simple wheeling done 18.01
   * Back-stepping added 19.01
