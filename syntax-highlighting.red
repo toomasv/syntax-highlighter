@@ -1,7 +1,7 @@
 Red [
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-20
+	Last: 2019-01-21
 	Purpose: {Study of syntax highlighting}
 ]
 do %info.red
@@ -18,7 +18,7 @@ context [
 	skp4: union skp3 charset "'"
 	com-check: charset {^/;}
 	opp: "[][()({}{"
-	br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-count: none
+	rt: bs: br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-num: needle: none ;layer: 
 	steps: clear []
 	initial-size: 800x400
 ;	find-matching: func [str needle][
@@ -170,7 +170,9 @@ context [
 					any-function? get/any el [highlight s s2 brick]; reduce ['bold blue]]
 					immediate? get/any el [highlight s s2 leaf]
 				]]
-				path? el		[if any-function? get/any el/1 [highlight s s2: find s #"/" brick]];reduce ['bold blue]]]
+				path? el		[;TBD Treat different paths: maps, blocks objects...
+					if any-function? either object? get/any el/1 [get/any el][get/any el/1] [highlight s s2: find s #"/" brick]
+				] 
 				any-word? el	[highlight s s2 navy]
 				any-path? el	[highlight s s2 water]
 				number? el		[highlight s s2 mint]
@@ -185,7 +187,7 @@ context [
 	box-rule: bind [
 		any [p: 
 			; func         brc
-			[178.34.34 | 142.128.110](;'bold (
+			[178.34.34 | 142.128.110](
 				address: back p 
 				keep reduce ['box caret-to-offset rt address/1/1 
 					(caret-to-offset rt pos: address/1/1 + address/1/2) + as-pair 0 -2 + rich-text/line-height? rt pos
@@ -198,50 +200,97 @@ context [
 		rt/offset: layer/offset: as-pair 0 pos - 1 * negate rich-text/line-height? rt 1
 		show bs
 	]
-	find-menu: ["Show" shw "Prev" prv "Next" nxt]
-	find-word: func [event][
+	reposition: func [line-num][
+		if any [
+			line-num < (scr/position + 1)
+			line-num > (scr/position + scr/page-size - 1)
+		][
+			scr/position: max 1 line-num - (scr/page-size / 3) 
+			rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+		]
+	]
+	ask-find: has [needle][
+		view/flags [
+			text "Find what" fnd: field 100 focus on-enter [needle: face/text unview]
+			button "OK" [needle: fnd/text unview]
+		][modal popup]
+		needle
+	]
+	find-menu: ["Find" fnd "Show" shw "Prev" prv "Next" nxt]
+	find-word: func [event /local _last][
+		_last: []; act str1 i1 len
 		switch event/picked [
+			fnd [
+				clear pos
+				if needle: ask-find [
+					either str1: find rt/text needle [
+						i1: index? str1
+						len: length? needle
+						;clear pos
+						repend rt/data [as-pair i1 len 'backdrop cyan]
+						reposition count-lines str1
+						repend clear _last ['find str1 i1 len]
+					][];TBD "Not found" message
+				]
+			]
 			shw [
 				clear pos
-				i0: index? str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp4
-				str2: find str1 skp3
-				elem: copy/part str1 str2
+				i0: index? str: find/reverse/tail at rt/text offset-to-caret rt event/offset skp4
+				str2: find str skp3
+				elem: copy/part str str2
 				str1: rt/text
 				len: length? elem
 				while [
 					str1: find/tail str1 elem
 				][
 					if all [
-						probe any [attempt [find skp4 probe first skip str1 -1 - len] head? skip str1 0 - len]
-						probe any [attempt [find skp3 probe first str1] tail? str1]
+						any [attempt [find skp4 first skip str1 -1 - len] head? skip str1 0 - len]
+						any [attempt [find skp3 first str1] tail? str1]
 					][
 						i1: index? str1
 						repend rt/data [as-pair i: i1 - len len 'backdrop either i = i0 [0.200.0][100.255.100]]
 					]
 				]
+				repend clear _last ['show str i0 len]
 			]
 			prv nxt [
 				prv: event/picked = 'prv
-				pos1: find rt/data [backdrop 0.200.0]
-				pos1/2: 100.255.100
-				pos1: skip pos1 pick [-2 4] prv
-				either prv [
-					unless pos1/1 = 100.255.100 [pos1: next find/last rt/data 'backdrop]
-				][
-					if empty? pos1 [pos1: next find rt/data 'backdrop]
-				]
-				pos1/1: 0.200.0
-				line-count: count-lines at rt/text pos1/-2/1
-				if any [
-					line-count < (scr/position + 1)
-					line-count > (scr/position + scr/page-size - 1)
-				][
-					scr/position: max 1 line-count - (scr/page-size / 3) ;get pick [+ -] prv
-					rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+				switch _last/1 [
+					show [
+						pos1: find rt/data [backdrop 0.200.0]
+						pos1/2: 100.255.100
+						pos1: skip pos1 pick [-2 4] prv
+						either prv [
+							unless pos1/1 = 100.255.100 [pos1: next find/last rt/data 'backdrop]
+						][
+							if empty? pos1 [pos1: next find rt/data 'backdrop]
+						]
+						pos1/1: 0.200.0
+						reposition count-lines at rt/text pos1/-2/1
+					]
+					find [
+						clear pos
+						if str1: either prv [
+							any [
+								either head? _last/2 [
+									find/reverse tail rt/text needle
+								][
+									find/reverse back _last/2 needle
+								] 
+								find/reverse tail rt/text needle
+							]
+						][
+							any [find next _last/2 needle find rt/text needle]
+						][
+							_last/3: index? _last/2: str1
+							repend rt/data [as-pair _last/3 _last/4 'backdrop cyan]
+							reposition count-lines str1
+						]
+					]
 				]
 			]
 		]
-		show event/face/parent
+		show rt;event/face/parent
 	]
 	system/view/auto-sync?: off
 	view/flags/options/tight [
@@ -278,7 +327,7 @@ context [
 				]
 				panel 150x30 [
 					origin 0x0 
-					help: radio 45 "Help" data yes 
+					tips: radio 45 "Tips" data yes 
 					expr: radio 45 "Expr" 
 					step: radio 45 "Step" [
 						clear pos
@@ -353,7 +402,7 @@ context [
 								in-brc: no
 								show bs
 							]
-							help/data [
+							tips/data [
 								tip/visible?: no
 								show tip
 							]
@@ -370,7 +419,7 @@ context [
 								br-scope back br
 								show bs
 							]
-							help/data [
+							tips/data [
 								attempt [
 									wrd: to-word copy/part str find str skp2
 									tip/text: help-string :wrd
@@ -405,6 +454,10 @@ context [
 					down [scr/position + 1]
 					page-down [scr/position + scr/page-size]
 				] scr/max-size
+				clear at layer/draw 5
+				collect/into [parse rt/data box-rule] layer/draw
+				pos: tail rt/data
+				show bs
 			]
 		]
 		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size + 1]
@@ -422,6 +475,7 @@ context [
 				show bs
 			]
 		]
+		on-key [probe event/key]
 		at 0x0 tip: box "" 350x50 left linen hidden
 		do [rt/parent: bs layer/parent: bs]
 	] 'resize [
