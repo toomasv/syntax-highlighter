@@ -1,11 +1,12 @@
 Red [
+	Needs: View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-21
+	Last: 2019-01-23
 	Purpose: {Study of syntax highlighting}
 ]
 do %info.red
-context [
+ctx: context [
 	ws: charset " ^/^-"
 	opn: charset "[("
 	cls: charset ")]"
@@ -18,8 +19,11 @@ context [
 	skp4: union skp3 charset "'"
 	com-check: charset {^/;}
 	opp: "[][()({}{"
-	rt: bs: br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-num: needle: none ;layer: 
+	rt: layer: bs: br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-num: needle: none
+	_i1: _i2: _str1: _str2: btns: none
+	_break: false
 	steps: clear []
+	last-find: []; act str1 i1 len
 	initial-size: 800x400
 ;	find-matching: func [str needle][
 ;		
@@ -29,38 +33,77 @@ context [
 	count-lines: function [pos][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
 	prev-step: does [
 		unless empty? steps [
-			set [str1 str2] take/last/part steps 2
-			i1: index? str1
-			i2: index? str2
+			set [_str1 _str2] take/last/part steps 2
+			_i1: index? _str1
+			_i2: index? _str2
 			clear pos
-			repend rt/data [as-pair i1 i2 - i1 'backdrop sky]
-			if (count-lines str1) < scr/position [
-				scr/position: count-lines str1
+			repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
+			if (count-lines _str1) < scr/position [
+				scr/position: count-lines _str1
 				rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
 			]
-			show bs
+			set-focus bs
+			show lay
 		]
 	]
 	next-step: does [
-		repend steps [str1 str2]
-		str2: skip-some str2 cls2
-		while [str2/1 = #";"][
-			str2: arg-scope str2 none
-			str2: skip-some str2 cls2
+		;unless tail? _str2 [
+			repend steps [_str1 _str2]
+			_str2: skip-some _str2 cls2
+		;]
+		;unless tail? _str2 [
+			while [_str2/1 = #";"][
+				_str2: arg-scope _str2 none
+				_str2: skip-some _str2 cls2
+			]
+			_i1: index? _str1: _str2
+			move-backdrop _str2
+		;]
+	]
+	into-step: does [
+		repend steps [_str1 _str2]
+		either find/match opn _str1/1 [
+			_i1: index? _str1: next _str1
+			_str1: skip-some _str1 ws
+		][
+			_i1: index? _str1: find/tail _str1 skp
 		]
-		i1: index? str1: str2
-		move-backdrop str2
+		move-backdrop _str1
+	]
+	do-step: does [
+		do copy/part _str1 _str2 next-step
+		set-focus bs
+		show lay
 	]
 	move-backdrop: func [str][
-		i2: index? str2: arg-scope str none
+		_i2: index? _str2: arg-scope str none
 		clear pos
-		repend rt/data [as-pair i1 i2 - i1 'backdrop sky]
-		if (count-lines str2) > (scr/position + scr/page-size)[
+		repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
+		if (count-lines _str2) > (scr/position + scr/page-size)[
 			scr/position: count-lines str
 			rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
 		]
-		show bs
+		set-focus bs
+		show lay
 	]
+	get-function: function [path][
+		path: copy path while [
+			not any [
+				tail? path 
+				any-function? attempt [get/any either 1 = length? path [path/1][path]]
+			]
+		][
+			clear back tail path
+		] 
+		either empty? path [none][path]
+	]
+;	get-function: function [path][
+;		path: copy path
+;		while [not any [tail? path any-function? attempt [get/any either 1 = length? path [to-word path][path]]]][
+;			clear back tail path
+;		]
+;		either empty? path [none][path]
+;	]
 	br-scope: function [br][
 		i1: index? br
 		stack: append clear [] br/1
@@ -112,7 +155,12 @@ context [
 				switch type?/word el [
 					set-word! set-path! [s1: arg-scope s1 none]
 					word! [if any-function? get/any el [s1: scope str]]
-					path! [if any-function? get/any first el [s1: scope str]]
+					path! [
+						case [
+							any-function? get/any first el [s1: scope str]
+							get-function el [s1: scope str]
+						]
+					]
 				]
 			]
 		]
@@ -120,7 +168,7 @@ context [
 	]
 	scope: func [str /local /color col fn fnc inf clr arg i1 i2 s1 s2][
 		fn: load/next str 's1
-		fnc: either word? fn [fn][first fn]
+		fnc: either word? fn [fn][fn1: get-function fn either 1 = length? fn1 [fn1/1][fn1]];[first fn]
 		inf: info :fnc
 		clr: any [col yello] 
 		either op! = inf/type [
@@ -141,8 +189,8 @@ context [
 				s1: :s2
 			]
 		]
-		if path? fn [
-			foreach ref next fn [
+		if all [path? fn any [word? fnc (length? fn) > (length? fnc)]][
+			foreach ref either word? fnc [next fn][skip fn length? fnc] [
 				if 0 < length? refs: inf/refinements/:ref [
 					foreach type values-of refs [
 						i2: index? s2: arg-scope s1 type
@@ -170,8 +218,14 @@ context [
 					any-function? get/any el [highlight s s2 brick]; reduce ['bold blue]]
 					immediate? get/any el [highlight s s2 leaf]
 				]]
-				path? el		[;TBD Treat different paths: maps, blocks objects...
-					if any-function? either object? get/any el/1 [get/any el][get/any el/1] [highlight s s2: find s #"/" brick]
+				path? el		[;TBD Treat different paths: maps, blocks, objects...
+					case [
+						any-function? get/any el/1 [highlight s s2: find s #"/" brick]
+						fn: get-function :el [highlight s s2: find/tail s form fn brick] 
+					]
+					;if any-function? either object? get/any el/1 [get/any el][get/any el/1][
+					;	highlight s s2: find s #"/" brick
+					;]
 				] 
 				any-word? el	[highlight s s2 navy]
 				any-path? el	[highlight s s2 water]
@@ -216,9 +270,44 @@ context [
 		][modal popup]
 		needle
 	]
-	find-menu: ["Find" fnd "Show" shw "Prev" prv "Next" nxt]
-	find-word: func [event /local _last][
-		_last: []; act str1 i1 len
+	find-again: func [prv][
+		switch last-find/1 [
+			show [
+				pos1: find rt/data [backdrop 0.200.0]
+				pos1/2: 100.255.100
+				pos1: skip pos1 pick [-2 4] prv
+				either prv [
+					unless pos1/1 = 100.255.100 [pos1: next find/last rt/data 'backdrop]
+				][
+					if empty? pos1 [pos1: next find rt/data 'backdrop]
+				]
+				pos1/1: 0.200.0
+				reposition count-lines at rt/text pos1/-2/1
+			]
+			find [
+				clear pos
+				if str1: either prv [
+					any [
+						either head? last-find/2 [
+							find/reverse tail rt/text needle
+						][
+							find/reverse back last-find/2 needle
+						] 
+						find/reverse tail rt/text needle
+					]
+				][
+					any [find next last-find/2 needle find rt/text needle]
+				][
+					last-find/3: index? last-find/2: str1
+					repend rt/data [as-pair last-find/3 last-find/4 'backdrop cyan]
+					reposition count-lines str1
+				]
+			]
+		]
+		show bs
+	]
+	find-menu: ["Find" fnd "Show" shw "Prev" prv "Next" nxt]; "Inspect" ins]
+	find-word: func [event][
 		switch event/picked [
 			fnd [
 				clear pos
@@ -229,7 +318,7 @@ context [
 						;clear pos
 						repend rt/data [as-pair i1 len 'backdrop cyan]
 						reposition count-lines str1
-						repend clear _last ['find str1 i1 len]
+						repend clear last-find ['find str1 i1 len]
 					][];TBD "Not found" message
 				]
 			]
@@ -251,49 +340,20 @@ context [
 						repend rt/data [as-pair i: i1 - len len 'backdrop either i = i0 [0.200.0][100.255.100]]
 					]
 				]
-				repend clear _last ['show str i0 len]
+				repend clear last-find ['show str i0 len]
 			]
 			prv nxt [
 				prv: event/picked = 'prv
-				switch _last/1 [
-					show [
-						pos1: find rt/data [backdrop 0.200.0]
-						pos1/2: 100.255.100
-						pos1: skip pos1 pick [-2 4] prv
-						either prv [
-							unless pos1/1 = 100.255.100 [pos1: next find/last rt/data 'backdrop]
-						][
-							if empty? pos1 [pos1: next find rt/data 'backdrop]
-						]
-						pos1/1: 0.200.0
-						reposition count-lines at rt/text pos1/-2/1
-					]
-					find [
-						clear pos
-						if str1: either prv [
-							any [
-								either head? _last/2 [
-									find/reverse tail rt/text needle
-								][
-									find/reverse back _last/2 needle
-								] 
-								find/reverse tail rt/text needle
-							]
-						][
-							any [find next _last/2 needle find rt/text needle]
-						][
-							_last/3: index? _last/2: str1
-							repend rt/data [as-pair _last/3 _last/4 'backdrop cyan]
-							reposition count-lines str1
-						]
-					]
-				]
+				find-again prv
+			]
+			ins [
+				
 			]
 		]
 		show rt;event/face/parent
 	]
 	system/view/auto-sync?: off
-	view/flags/options/tight [
+	view/flags lay: layout/options/tight [
 		backdrop white
 		panel 800x50 [
 			origin 0x0 
@@ -316,8 +376,9 @@ context [
 						clear at layer/draw 5
 						collect/into [parse rt/data box-rule] layer/draw
 						pos: tail rt/data
-						show bs
 						if step/data [step/actors/on-change step none]
+						set-focus bs
+						show lay
 					]
 					button "Dir..." [
 						files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
@@ -327,42 +388,39 @@ context [
 				]
 				panel 150x30 [
 					origin 0x0 
-					tips: radio 45 "Tips" data yes 
-					expr: radio 45 "Expr" 
+					tips: radio 45 "Tips" data yes [set-focus bs cnt: 0 attempt [show lay]];remove `attempt` -> Stack overflow!
+					expr: radio 45 "Expr" [set-focus bs attempt [show lay]];Stack overflow!
 					step: radio 45 "Step" [
-						clear pos
-						either face/data [
-							either empty? steps [
-								str1: head rt/text
-								scr/position: 1
-								rt/offset: layer/offset: 0x0
-								i2: index? str2: arg-scope str1 none
-								;pos: tail rt/data
-								repend rt/data [as-pair 1 i2 - 1 'backdrop sky]
+						if 1 = cnt: cnt + 1 [
+							_break: false
+							clear pos
+							clear last-find
+							either face/data [
+								cnt: 0
+								either empty? steps [
+									_str1: head rt/text
+									scr/position: 1
+									rt/offset: layer/offset: 0x0
+									_i2: index? _str2: arg-scope _str1 none
+									repend rt/data [as-pair 1 _i2 - 1 'backdrop sky]
+								][
+									prev-step _break: true
+								]
 							][
-								prev-step
-							]
-						][
-							repend steps [str1 str2]
+								repend steps [_str1 _str2] 
+							] 
+							set-focus bs
+							show lay
+							'stop
 						]
-						show bs
 					]
 				]
-				panel [
+				btns: panel [
 					origin 0x0
-					button "Prev" [prev-step]
-					button "Eval" [do copy/part str1 str2 next-step]
-					button "Next" [next-step]
-					button "Into" [
-						repend steps [str1 str2]
-						either find/match opn str1/1 [
-							i1: index? str1: next str1
-							str1: skip-some str1 ws
-						][
-							i1: index? str1: find/tail str1 skp
-						]
-						move-backdrop str1
-					]
+					button "Prev" [either all [step/data empty? last-find] [prev-step][find-again true]]
+					button "Eval" [if all [step/data empty? last-find] [do-step]]
+					button "Next" [either all [step/data empty? last-find] [next-step][find-again false]]
+					button "Into" [either all [step/data empty? last-find] [into-step][find-again false]]
 				]
 			]
 		]
@@ -377,7 +435,7 @@ context [
 					data: []
 					menu: find-menu
 				]
-				on-menu [find-word event]; show rt]
+				on-menu [find-word event]
 				;on-mid-down [wheel-pos: event/offset] ; TBD?
 				;all-over on-over [
 				;	if event/mid-down? [
@@ -393,7 +451,7 @@ context [
 					menu: find-menu
 				] 
 				draw [pen off fill-pen 0.0.0.254]
-				on-menu [find-word event]; show face]
+				on-menu [find-word event]
 				on-over [
 					either event/away? [
 						case [
@@ -461,6 +519,15 @@ context [
 			]
 		]
 		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size + 1]
+		on-key [
+			switch event/key [
+				left up [either all [step/data empty? last-find] [prev-step][find-again true]]
+				right [either all [step/data empty? last-find] [next-step][find-again false]]
+				down [either all [step/data empty? last-find] [into-step][find-again false]]
+				#"^M" [if all [step/data empty? last-find] [do-step]] ;enter
+			]
+			;show bs
+		]
 		on-down [
 			if step/data [
 				clear pos
@@ -475,10 +542,9 @@ context [
 				show bs
 			]
 		]
-		on-key [probe event/key]
-		at 0x0 tip: box "" 350x50 left linen hidden
+		at 0x0 tip: rich-text "" 400x50 left linen hidden
 		do [rt/parent: bs layer/parent: bs]
-	] 'resize [
+	] [
 		offset: 300x50
 		actors: object [
 			max-x: max-y: 0
@@ -517,5 +583,5 @@ context [
 				show face
 			]
 		]
-	]
+	] 'resize
 ]
