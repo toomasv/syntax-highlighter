@@ -306,7 +306,7 @@ ctx: context [
 		]
 		show bs
 	]
-	find-menu: ["Find" fnd "Show" shw "Prev" prv "Next" nxt]; "Inspect" ins]
+	find-menu: ["Find" fnd "Show" shw "Prev" prv "Next" nxt "Inspect" ins]
 	find-word: func [event][
 		switch event/picked [
 			fnd [
@@ -342,10 +342,7 @@ ctx: context [
 				]
 				repend clear last-find ['show str i0 len]
 			]
-			prv nxt [
-				prv: event/picked = 'prv
-				find-again prv
-			]
+			prv nxt [find-again event/picked = 'prv]
 			ins [
 				
 			]
@@ -478,16 +475,21 @@ ctx: context [
 								show bs
 							]
 							tips/data [
-								attempt [
-									wrd: to-word copy/part str find str skp2
+								attempt [wrd: to-word copy/part str find str skp2]
+								either event/ctrl? [
+									tip/text: rejoin [type? fn: get :wrd "!^/"]
+									append tip/text mold spec-of :fn
+									if function? :fn [append tip/text mold body-of :fn]
+								][
 									tip/text: help-string :wrd
-									tip/size/y: 20 + second size-text tip
-									tip/offset: min 
-										max 0x0 event/offset + face/offset + as-pair 30 0 - (tip/size/y / 2)
-										bs/size - tip/size
-									tip/visible?: yes
-									show tip
 								]
+								tip/size/y: 20 + second size-text tip
+								tip/offset: min 
+									max 0x40 event/offset + face/offset + as-pair 30 0 - (tip/size/y / 2)
+									bs/size - tip/size
+								tip/data/1/2: length? tip/text
+								tip/visible?: yes
+								show tip
 							]
 							expr/data [scope str]
 						]
@@ -531,18 +533,18 @@ ctx: context [
 		on-down [
 			if step/data [
 				clear pos
-				repend steps [str1 str2]
-				i1: index? str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp
-				i2: index? str2: arg-scope str1 none
-				repend rt/data [as-pair i1 i2 - i1 'backdrop sky]
-				if (count-lines str2) > (scr/position + scr/page-size)[
-					scr/position: count-lines str1
+				repend steps [_str1 _str2]
+				_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp
+				_i2: index? _str2: arg-scope _str1 none
+				repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
+				if (count-lines _str2) > (scr/position + scr/page-size)[
+					scr/position: count-lines _str1
 					rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
 				]
 				show bs
 			]
 		]
-		at 0x0 tip: rich-text "" 400x50 left linen hidden
+		at 0x0 tip: rich-text "" 400x50 left navy hidden with [data: [1x0 255.255.255]]
 		do [rt/parent: bs layer/parent: bs]
 	] [
 		offset: 300x50
