@@ -2,7 +2,7 @@ Red [
 	Needs: View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-23
+	Last: 2019-01-24
 	Purpose: {Study of syntax highlighting}
 ]
 do %info.red
@@ -20,17 +20,18 @@ ctx: context [
 	com-check: charset {^/;}
 	opp: "[][()({}{"
 	rt: layer: bs: br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-num: needle: none
-	_i1: _i2: _str1: _str2: btns: none
+	_i1: _i2: _str1: _str2: btns: caret: found: none
+	curpos: anchor: 1
+	crt-start: crt-end: 1 
+	crt-diff: 0
+	dbl: no
 	_break: false
 	steps: clear []
 	last-find: []; act str1 i1 len
 	initial-size: 800x400
-;	find-matching: func [str needle][
-;		
-;	]
-	highlight: function [s1 s2 style] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
-	skip-some: func [str chars][while [find/match str chars][str: next str] str]
-	count-lines: function [pos][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
+	highlight: function [s1 [string!] s2 [string!] style [tuple! block!]] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
+	skip-some: func [str [string!] chars [bitset!]][while [find/match str chars][str: next str] str]
+	count-lines: function [pos [string!]][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
 	prev-step: does [
 		unless empty? steps [
 			set [_str1 _str2] take/last/part steps 2
@@ -47,18 +48,14 @@ ctx: context [
 		]
 	]
 	next-step: does [
-		;unless tail? _str2 [
-			repend steps [_str1 _str2]
+		repend steps [_str1 _str2]
+		_str2: skip-some _str2 cls2
+		while [_str2/1 = #";"][
+			_str2: arg-scope _str2 none
 			_str2: skip-some _str2 cls2
-		;]
-		;unless tail? _str2 [
-			while [_str2/1 = #";"][
-				_str2: arg-scope _str2 none
-				_str2: skip-some _str2 cls2
-			]
-			_i1: index? _str1: _str2
-			move-backdrop _str2
-		;]
+		]
+		_i1: index? _str1: _str2
+		move-backdrop _str2
 	]
 	into-step: does [
 		repend steps [_str1 _str2]
@@ -75,7 +72,7 @@ ctx: context [
 		set-focus bs
 		show lay
 	]
-	move-backdrop: func [str][
+	move-backdrop: func [str [string!]][
 		_i2: index? _str2: arg-scope str none
 		clear pos
 		repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
@@ -86,7 +83,7 @@ ctx: context [
 		set-focus bs
 		show lay
 	]
-	get-function: function [path][
+	get-function: function [path [path!]][
 		path: copy path while [
 			not any [
 				tail? path 
@@ -97,14 +94,7 @@ ctx: context [
 		] 
 		either empty? path [none][path]
 	]
-;	get-function: function [path][
-;		path: copy path
-;		while [not any [tail? path any-function? attempt [get/any either 1 = length? path [to-word path][path]]]][
-;			clear back tail path
-;		]
-;		either empty? path [none][path]
-;	]
-	br-scope: function [br][
+	br-scope: function [br [string!]][
 		i1: index? br
 		stack: append clear [] br/1
 		mstack: clear []
@@ -136,11 +126,11 @@ ctx: context [
 			
 		]
 	]
-	left-scope: func [str /local i][i: 0
+	left-scope: func [str [string!] /local i [integer!]][i: 0
 		until [str: back str not find/match str ws]
 		either #")" = str/1 [find/reverse str "("][find/reverse/tail str skp]
 	]
-	arg-scope: func [str type /left /right /local el el2 s0 s1 s2 i2 _][
+	arg-scope: func [str [string!] type [none! block! datatype! typeset!] /left /right /local el el2 s0 s1 s2 i2 _][
 		either left [
 			s1: left-scope str
 			s0: left-scope s1
@@ -166,7 +156,7 @@ ctx: context [
 		]
 		s1
 	]
-	scope: func [str /local /color col fn fnc inf clr arg i1 i2 s1 s2][
+	scope: func [str [string!] /color col /local fn fnc inf clr arg i1 i2 s1 s2][
 		fn: load/next str 's1
 		fnc: either word? fn [fn][fn1: get-function fn either 1 = length? fn1 [fn1/1][fn1]];[first fn]
 		inf: info :fnc
@@ -218,14 +208,11 @@ ctx: context [
 					any-function? get/any el [highlight s s2 brick]; reduce ['bold blue]]
 					immediate? get/any el [highlight s s2 leaf]
 				]]
-				path? el		[;TBD Treat different paths: maps, blocks, objects...
+				path? el		[
 					case [
 						any-function? get/any el/1 [highlight s s2: find s #"/" brick]
 						fn: get-function :el [highlight s s2: find/tail s form fn brick] 
 					]
-					;if any-function? either object? get/any el/1 [get/any el][get/any el/1][
-					;	highlight s s2: find s #"/" brick
-					;]
 				] 
 				any-word? el	[highlight s s2 navy]
 				any-path? el	[highlight s s2 water]
@@ -235,7 +222,7 @@ ctx: context [
 			]
 		) :s2
 	]]
-	filter: func [series _end][
+	filter: func [series [block!] _end [string!]][
 		collect [foreach file series [if find/match skip tail file -4 _end [keep file]]]
 	]
 	box-rule: bind [
@@ -250,27 +237,31 @@ ctx: context [
 		| skip
 		]
 	] :collect
-	scroll: func [pos][
+	scroll: func [pos [integer!]][
 		rt/offset: layer/offset: as-pair 0 pos - 1 * negate rich-text/line-height? rt 1
 		show bs
 	]
-	reposition: func [line-num][
+	adjust-scroller: func [][
+		rt/size/y: layer/size/y: second size-text rt
+		scr/page-size: bs/size/y / rich-text/line-height? rt 1
+	]
+	reposition: func [line-num [integer!]][
 		if any [
-			line-num < (scr/position + 1)
-			line-num > (scr/position + scr/page-size - 1)
+			line-num < (scr/position)
+			line-num > (scr/position + scr/page-size - 3)
 		][
-			scr/position: max 1 line-num - (scr/page-size / 3) 
+			scr/position: max 0 line-num - (scr/page-size / 3) 
 			rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
 		]
 	]
-	ask-find: has [needle][
+	ask-find: has [needle [string!]][
 		view/flags [
 			text "Find what" fnd: field 100 focus on-enter [needle: face/text unview]
 			button "OK" [needle: fnd/text unview]
 		][modal popup]
 		needle
 	]
-	find-again: func [prv][
+	find-again: func [prv [logic!]][
 		switch last-find/1 [
 			show [
 				pos1: find rt/data [backdrop 0.200.0]
@@ -306,8 +297,8 @@ ctx: context [
 		]
 		show bs
 	]
-	find-menu: ["Find" fnd "Show" shw "Prev" prv "Next" nxt "Inspect" ins]
-	find-word: func [event][
+	find-menu: ["Find" fnd "Show" shw "Prev" prv "Next" nxt]; "Inspect" ins]
+	find-word: func [event [event!]][
 		switch event/picked [
 			fnd [
 				clear pos
@@ -349,18 +340,168 @@ ctx: context [
 		]
 		show rt;event/face/parent
 	]
+	recolor: does [
+		clear at rt/data 6
+		collect/into [parse rt/text rule] rt/data
+		clear at layer/draw 5
+		collect/into [parse rt/data box-rule] layer/draw
+		pos: tail rt/data
+	]
+	change-font-size: func [inc][
+		rt/data/5: rt/data/5 + inc 
+		show rt 
+		set-caret none 
+		adjust-scroller 
+		reposition count-lines at rt/text curpos 
+		set-focus bs 
+		attempt [show lay]
+	]
+	adjust-markers: func [pos1 [string!] /length len /local i1 pos3][
+		len: any [len 1]
+		i1: either found: find/reverse/tail pos1 skp2 [index? found][1]
+		pos3: rt/data
+		forall pos3 [
+			if pair? pos3/1 [
+				case [
+					all [negative? len curpos < pos3/1/1] [pos3/1/1: pos3/1/1 + len]
+					all [negative? len curpos > pos3/1/1 curpos < (pos3/1/1 + pos3/1/2 + len)][pos3/1/2: pos3/1/2 + len]
+					all [positive? len curpos <= pos3/1/1] [pos3/1/1: pos3/1/1 + len]
+					all [positive? len curpos > pos3/1/1 curpos <= (pos3/1/1 + pos3/1/2 + len)][pos3/1/2: pos3/1/2 + len]
+				]
+			]
+		]
+	]
+	set-caret: func [e [event! none! integer!]][
+		case [
+			event? e [ 
+				switch e/type [
+					down [
+						either e/shift? [
+							curpos: offset-to-caret rt e/offset
+							rt/data/1: as-pair min anchor curpos absolute anchor - curpos
+						][
+							anchor: curpos: offset-to-caret rt e/offset
+							rt/data/1/2: 0
+						]
+					]
+					key [
+						switch/default e/key [
+							right [
+								curpos: either e/ctrl? [
+									index? find at rt/text curpos + 1 skp2
+								][
+									min 1 + length? rt/text curpos + 1
+								]
+							]
+							left [
+								curpos: either e/ctrl? [
+									either found: find/reverse/tail at rt/text curpos - 1 skp2 [index? found][1]
+								][
+									max 1 curpos - 1
+								]
+							]
+							down [
+								curpos: min 1 + length? rt/text offset-to-caret rt 
+									((caret-to-offset rt curpos) + as-pair 0 3 + rich-text/line-height? rt 1)
+							]
+							up [curpos: max 1 offset-to-caret rt (caret-to-offset rt curpos) - 0x3]
+							page-down [curpos: min 1 + length? rt/text offset-to-caret rt (
+									(caret-to-offset rt curpos) + as-pair 0 bs/size/y
+							)]
+							page-up [curpos: max 1 offset-to-caret rt (
+								(caret-to-offset rt curpos) - as-pair 0 bs/size/y
+							)]
+							end [
+								curpos: either e/ctrl? [
+									1 + length? rt/text
+								][
+									index? find at rt/text curpos lf
+								]
+							]
+							home [
+								curpos: either e/ctrl? [1][
+									either found: find/reverse/tail at rt/text curpos lf [index? found][1]
+								]
+							]
+							#"^A" [anchor: 1 curpos: 1 + length? rt/text];Select all
+							#"^C" [;Copy
+								if rt/data/1/y > 0 [write-clipboard copy/part at rt/text rt/data/1/x rt/data/1/y]
+							]
+							#"^X" [;Cut
+								if rt/data/1/y > 0 [
+									write-clipboard copy/part pos1: at rt/text rt/data/1/x len: rt/data/1/y 
+									remove/part pos1 len 
+									recolor
+									set-caret rt/data/1/x 
+								]
+							]
+							#"^V" [;Paste
+								either rt/data/1/y > 0 [
+									change/part at rt/text curpos: rt/data/1/x txt: read-clipboard rt/data/1/y
+								][
+									insert at rt/text curpos txt: read-clipboard
+								]
+								recolor
+								set-caret curpos + length? txt
+							]
+							delete [
+								either rt/data/1/y > 0 [
+									remove/part at rt/text curpos: rt/data/1/x rt/data/1/y
+									recolor
+									set-caret curpos
+								][
+									if curpos <= length? rt/text [
+										remove pos1: at rt/text curpos
+										adjust-markers/length pos1 -1
+									]
+								]
+							]
+							#"^H" [;Backspace
+								either rt/data/1/y > 0 [
+									remove/part pos1: at rt/text curpos: rt/data/1/x rt/data/1/y
+									recolor
+									set-caret curpos
+								][
+									if curpos > 1 [
+										remove pos1: at rt/text curpos: curpos - 1
+										set-caret curpos
+										adjust-markers/length pos1 -1
+									]
+								]
+							]
+						][
+							curpos: index? pos1: insert at rt/text curpos e/key
+							adjust-markers pos1
+						]
+					]
+					enter [probe e/type]
+				]
+				either any [e/key = #"^A" all [e/shift? any [e/type = 'down find [left right down up end home] e/key]]] [
+					rt/data/1: as-pair min anchor curpos absolute anchor - curpos
+				][
+					anchor: curpos rt/data/1/2: 0
+				]
+			]
+			integer? e [anchor: curpos: e rt/data/1/2: 0]
+		]
+		caret/2: caret-to-offset rt curpos
+		caret/3: as-pair caret/2/1 caret/2/2 + rich-text/line-height? rt 1;caret-to-offset/lower rt curpos - 1
+		reposition count-lines at rt/text curpos
+		show rt
+	]
 	system/view/auto-sync?: off
 	view/flags lay: layout/options/tight [
 		backdrop white
 		panel 800x50 [
 			origin 0x0 
-			options: panel 740x50 [
+			options: panel 800x50 [
 				panel [
 					origin 0x0 
 					files: drop-list 200 with [data: read %.] 
 					on-change [
 						rt/offset: layer/offset: 0x0
 						rt/text: read pick face/data face/selected
+						rt/data/4/2: length? rt/text
 						show rt
 						rt/size/y: layer/size/y: second size-text rt
 						scr/max-size: rich-text/line-count? rt
@@ -368,11 +509,14 @@ ctx: context [
 						scr/page: 1
 						scr/page-size: bs/size/y / rich-text/line-height? rt 1
 						clear steps
-						clear rt/data
-						collect/into [parse rt/text rule] rt/data
-						clear at layer/draw 5
-						collect/into [parse rt/data box-rule] layer/draw
-						pos: tail rt/data
+						recolor
+						anchor: curpos: 1
+						rt/draw: compose [
+							pen black caret: line 
+								(as-pair 0 y: second caret-to-offset rt 1) 
+								(as-pair 0 y + rich-text/line-height? rt 1);second caret-to-offset/lower rt 0)
+						]
+						rt/rate: 3
 						if step/data [step/actors/on-change step none]
 						set-focus bs
 						show lay
@@ -383,9 +527,10 @@ ctx: context [
 						show files
 					] 
 				]
-				panel 150x30 [
+				panel 210x30 [
 					origin 0x0 
-					tips: radio 45 "Tips" data yes [set-focus bs cnt: 0 attempt [show lay]];remove `attempt` -> Stack overflow!
+					edit: radio 45 "Edit" data yes [clear pos set-focus bs attempt [show lay]]
+					tips: radio 45 "Tips" [set-focus bs cnt: 0 attempt [show lay]];remove `attempt` -> Stack overflow!
 					expr: radio 45 "Expr" [set-focus bs attempt [show lay]];Stack overflow!
 					step: radio 45 "Step" [
 						if 1 = cnt: cnt + 1 [
@@ -418,6 +563,9 @@ ctx: context [
 					button "Eval" [if all [step/data empty? last-find] [do-step]]
 					button "Next" [either all [step/data empty? last-find] [next-step][find-again false]]
 					button "Into" [either all [step/data empty? last-find] [into-step][find-again false]]
+					button "Recolor" [recolor set-focus bs attempt [show lay]]
+					button "A+" 30 [change-font-size 1]
+					button "A-" 30 [change-font-size -1]
 				]
 			]
 		]
@@ -429,20 +577,12 @@ ctx: context [
 				origin 0x0 
 				rt: rich-text "" with [
 					size: initial-size - 15x0
-					data: []
+					data: [1x0 backdrop silver 1x0 10]
 					menu: find-menu
 				]
+				cursor I-beam 
+				on-time [face/draw/2: pick [glass black] face/draw/2 = 'black show face]
 				on-menu [find-word event]
-				;on-mid-down [wheel-pos: event/offset] ; TBD?
-				;all-over on-over [
-				;	if event/mid-down? [
-				;		rt/offset: layer/offset: as-pair 0 
-				;			max 
-				;				min 0 rt/offset/y + (wheel-pos/y - event/offset/y) 
-				;				negate rt/size/y - bs/size/y
-				;		show bs
-				;	]
-				;]
 				at 0x0 layer: box with [
 					size: initial-size - 15x0
 					menu: find-menu
@@ -462,7 +602,7 @@ ctx: context [
 								show tip
 							]
 							expr/data [
-								clear back find rt/data 'backdrop
+								clear back find pos 'backdrop
 								show rt
 							]
 						]
@@ -503,9 +643,6 @@ ctx: context [
 			scr: get-scroller face 'vertical
 		]
 		on-scroll [
-			;print [ event/type event/key event/picked event/flags ]
-			;foreach attr exclude words-of scr [parent window][print [attr ":" get attr]]
-			;foreach attr exclude system/catalog/accessors/event! [face parent window][print [attr ":" attempt [get/any event/:attr]]]
 			unless event/key = 'end [
 				scroll scr/position: min max 1 switch event/key [
 					track [event/picked]
@@ -522,16 +659,30 @@ ctx: context [
 		]
 		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size + 1]
 		on-key [
-			switch event/key [
-				left up [either all [step/data empty? last-find] [prev-step][find-again true]]
-				right [either all [step/data empty? last-find] [next-step][find-again false]]
-				down [either all [step/data empty? last-find] [into-step][find-again false]]
-				#"^M" [if all [step/data empty? last-find] [do-step]] ;enter
+			switch/default event/key [
+				left up [case [
+					all [step/data empty? last-find] [prev-step]
+					all [tips/data find [show find] last-find/1][find-again true]
+					edit/data [set-caret event]
+				]]
+				right [case [
+					all [step/data empty? last-find] [next-step]
+					all [tips/data find [show find] last-find/1] [find-again false]
+					edit/data [set-caret event]
+				]]
+				down [case [
+					all [step/data empty? last-find] [into-step]
+					all [tips/data find [show find] last-find/1] [find-again false]
+					edit/data [set-caret event]
+				]]
+				#"^M" [either all [step/data empty? last-find] [do-step][set-caret event]] ;enter
+			][
+				set-caret event
+				show rt
 			]
-			;show bs
 		]
 		on-down [
-			if step/data [
+			either step/data [
 				clear pos
 				repend steps [_str1 _str2]
 				_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp
@@ -542,7 +693,7 @@ ctx: context [
 					rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
 				]
 				show bs
-			]
+			][set-caret event]
 		]
 		at 0x0 tip: rich-text "" 400x50 left navy hidden with [data: [1x0 255.255.255]]
 		do [rt/parent: bs layer/parent: bs]
@@ -556,7 +707,7 @@ ctx: context [
 			on-resizing: func [face event /local _last diff][
 				if any [
 					0 > diff: face/size/x - options/size/x
-					all [diff > 0 options/size/x < 740]
+					all [diff > 0 options/size/x < 900]
 				][
 					max-y: 0
 					max-x: 0 
