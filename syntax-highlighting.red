@@ -1,8 +1,8 @@
 Red [
-	Needs: View
+	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-24
+	Last: 2019-01-25
 	Purpose: {Study of syntax highlighting}
 ]
 do %info.red
@@ -25,10 +25,43 @@ ctx: context [
 	crt-start: crt-end: 1 
 	crt-diff: 0
 	dbl: no
-	_break: false
+	;_break: false
 	steps: clear []
 	last-find: []; act str1 i1 len
-	initial-size: 800x400
+	initial-size: 820x400
+
+	open-file: func [file][
+		rt/offset: 0x0 ;layer/offset: 
+		either file [
+			rt/text: read file;pick face/data face/selected
+			lay/text: mold file
+		][
+			rt/text: copy "Red []^/"
+			lay/text: "New file"
+		]
+		rt/data/4/2: length? rt/text
+		show rt
+		rt/size/y: max bs/size/y second size-text rt ;layer/size/y: 
+		scr/max-size: rich-text/line-count? rt
+		scr/position: 1
+		scr/page: 1
+		scr/page-size: bs/size/y / rich-text/line-height? rt 1
+		clear steps
+		recolor
+		anchor: curpos: 1
+		rt/draw: compose [
+			pen black caret: line 
+				(as-pair 0 y: second caret-to-offset rt 1) 
+				(as-pair 0 y + rich-text/line-height? rt 1);second caret-to-offset/lower rt 0)
+		]
+		rt/rate: 3
+		if step/data [step/actors/on-change step none]
+		set-focus bs
+		show lay
+	]
+;	find-matching: func [str needle][
+;		
+;	]
 	highlight: function [s1 [string!] s2 [string!] style [tuple! block!]] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
 	skip-some: func [str [string!] chars [bitset!]][while [find/match str chars][str: next str] str]
 	count-lines: function [pos [string!]][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
@@ -39,23 +72,28 @@ ctx: context [
 			_i2: index? _str2
 			clear pos
 			repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
-			if (count-lines _str1) < scr/position [
-				scr/position: count-lines _str1
-				rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
-			]
-			set-focus bs
-			show lay
+			reposition count-lines _str1
+			;if (count-lines _str1) < scr/position [
+			;	scr/position: count-lines _str1
+			;	rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+			;]
+			;set-focus bs
+			;show lay
 		]
 	]
 	next-step: does [
-		repend steps [_str1 _str2]
-		_str2: skip-some _str2 cls2
-		while [_str2/1 = #";"][
-			_str2: arg-scope _str2 none
+		;unless tail? _str2 [
+			repend steps [_str1 _str2]
 			_str2: skip-some _str2 cls2
-		]
-		_i1: index? _str1: _str2
-		move-backdrop _str2
+		;]
+		;unless tail? _str2 [
+			while [_str2/1 = #";"][
+				_str2: arg-scope _str2 none
+				_str2: skip-some _str2 cls2
+			]
+			_i1: index? _str1: _str2
+			move-backdrop _str2
+		;]
 	]
 	into-step: does [
 		repend steps [_str1 _str2]
@@ -77,11 +115,12 @@ ctx: context [
 		clear pos
 		repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
 		if (count-lines _str2) > (scr/position + scr/page-size)[
-			scr/position: count-lines str
-			rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+			reposition count-lines str
+			;scr/position: count-lines str
+			;rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
 		]
-		set-focus bs
-		show lay
+		;set-focus bs
+		;show lay
 	]
 	get-function: function [path [path!]][
 		path: copy path while [
@@ -195,7 +234,10 @@ ctx: context [
 		show rt
 		s1
 	]
-	rule: [any [s:
+	filter: func [series [block!] _end [string!]][
+		collect [foreach file series [if find/match skip tail file -4 _end [keep file]]]
+	]
+	rule: [any [s: [if ((index? text-end) <= index? s) (return true) |]
 		ws
 	|	brc (s2: next s highlight s s2 rebolor)
 	|	#";" [if (s2: find s newline) | (s2: tail s)] (highlight s s2 reduce ['italic beige - 50]) :s2
@@ -222,37 +264,41 @@ ctx: context [
 			]
 		) :s2
 	]]
-	filter: func [series [block!] _end [string!]][
-		collect [foreach file series [if find/match skip tail file -4 _end [keep file]]]
-	]
 	box-rule: bind [
 		any [p: 
 			; func         brc
 			[178.34.34 | 142.128.110](
 				address: back p 
-				keep reduce ['box caret-to-offset rt address/1/1 
-					(caret-to-offset rt pos: address/1/1 + address/1/2) + as-pair 0 -2 + rich-text/line-height? rt pos
+				keep reduce ['box (caret-to-offset rt address/1/1) + rt/offset + 0x2
+					(caret-to-offset rt pos: address/1/1 + address/1/2) + (as-pair 0 -2 + rich-text/line-height? rt pos) + rt/offset
 				]
 			)
 		| skip
 		]
 	] :collect
 	scroll: func [pos [integer!]][
-		rt/offset: layer/offset: as-pair 0 pos - 1 * negate rich-text/line-height? rt 1
+		rt/offset: as-pair 0 pos - 1 * negate rich-text/line-height? rt 1 ;layer/offset: 
+		recolor
 		show bs
 	]
 	adjust-scroller: func [][
-		rt/size/y: layer/size/y: second size-text rt
+		rt/size/y: second size-text rt ; layer/size/y: 
+		;scr/max-size: rich-text/line-count? rt
+		;scr/position: 1
+		;scr/page: 1
 		scr/page-size: bs/size/y / rich-text/line-height? rt 1
 	]
 	reposition: func [line-num [integer!]][
 		if any [
 			line-num < (scr/position)
-			line-num > (scr/position + scr/page-size - 3)
+			line-num > (scr/position + scr/page-size - 1)
 		][
 			scr/position: max 0 line-num - (scr/page-size / 3) 
-			rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+			rt/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1 ; layer/offset: 
+			recolor
 		]
+		set-focus bs
+		show lay
 	]
 	ask-find: has [needle [string!]][
 		view/flags [
@@ -295,12 +341,12 @@ ctx: context [
 				]
 			]
 		]
-		show bs
+		;show bs
 	]
-	find-menu: ["Find" fnd "Show" shw "Prev" prv "Next" nxt]; "Inspect" ins]
+	find-menu: ["Find" find "Show" show "Prev" prev "Next" next "Inspect" insp]
 	find-word: func [event [event!]][
 		switch event/picked [
-			fnd [
+			find [
 				clear pos
 				if needle: ask-find [
 					either str1: find rt/text needle [
@@ -313,7 +359,7 @@ ctx: context [
 					][];TBD "Not found" message
 				]
 			]
-			shw [
+			show [
 				clear pos
 				i0: index? str: find/reverse/tail at rt/text offset-to-caret rt event/offset skp4
 				str2: find str skp3
@@ -332,20 +378,24 @@ ctx: context [
 					]
 				]
 				repend clear last-find ['show str i0 len]
+				show rt
 			]
-			prv nxt [find-again event/picked = 'prv]
-			ins [
+			prev next [find-again event/picked = 'prev]
+			insp [
 				
 			]
 		]
-		show rt;event/face/parent
+		;show rt;event/face/parent
 	]
 	recolor: does [
+		text-start: at rt/text offset-to-caret rt ofs: as-pair 0 0 - rt/offset/y
+		text-end: at rt/text offset-to-caret rt ofs + bs/size
 		clear at rt/data 6
-		collect/into [parse rt/text rule] rt/data
+		collect/into [parse text-start rule] rt/data;[parse rt/text rule] rt/data
 		clear at layer/draw 5
 		collect/into [parse rt/data box-rule] layer/draw
 		pos: tail rt/data
+		system/view/platform/redraw layer
 	]
 	change-font-size: func [inc][
 		rt/data/5: rt/data/5 + inc 
@@ -353,8 +403,8 @@ ctx: context [
 		set-caret none 
 		adjust-scroller 
 		reposition count-lines at rt/text curpos 
-		set-focus bs 
-		attempt [show lay]
+		;set-focus bs 
+		;attempt [show lay]
 	]
 	adjust-markers: func [pos1 [string!] /length len /local i1 pos3][
 		len: any [len 1]
@@ -370,6 +420,8 @@ ctx: context [
 				]
 			]
 		]
+		show rt
+		recolor
 	]
 	set-caret: func [e [event! none! integer!]][
 		case [
@@ -377,10 +429,10 @@ ctx: context [
 				switch e/type [
 					down [
 						either e/shift? [
-							curpos: offset-to-caret rt e/offset
+							curpos: offset-to-caret rt either e/face = rt [e/offset][e/offset - rt/offset]
 							rt/data/1: as-pair min anchor curpos absolute anchor - curpos
 						][
-							anchor: curpos: offset-to-caret rt e/offset
+							anchor: curpos: offset-to-caret rt either e/face = rt [e/offset][e/offset - rt/offset]
 							rt/data/1/2: 0
 						]
 					]
@@ -405,12 +457,16 @@ ctx: context [
 									((caret-to-offset rt curpos) + as-pair 0 3 + rich-text/line-height? rt 1)
 							]
 							up [curpos: max 1 offset-to-caret rt (caret-to-offset rt curpos) - 0x3]
-							page-down [curpos: min 1 + length? rt/text offset-to-caret rt (
+							page-down [
+								curpos: min 1 + length? rt/text offset-to-caret rt (
 									(caret-to-offset rt curpos) + as-pair 0 bs/size/y
-							)]
-							page-up [curpos: max 1 offset-to-caret rt (
-								(caret-to-offset rt curpos) - as-pair 0 bs/size/y
-							)]
+								)
+							]
+							page-up [
+								curpos: max 1 offset-to-caret rt (
+									(caret-to-offset rt curpos) - as-pair 0 bs/size/y
+								)
+							]
 							end [
 								curpos: either e/ctrl? [
 									1 + length? rt/text
@@ -447,6 +503,7 @@ ctx: context [
 							delete [
 								either rt/data/1/y > 0 [
 									remove/part at rt/text curpos: rt/data/1/x rt/data/1/y
+									show rt
 									recolor
 									set-caret curpos
 								][
@@ -474,7 +531,6 @@ ctx: context [
 							adjust-markers pos1
 						]
 					]
-					enter [probe e/type]
 				]
 				either any [e/key = #"^A" all [e/shift? any [e/type = 'down find [left right down up end home] e/key]]] [
 					rt/data/1: as-pair min anchor curpos absolute anchor - curpos
@@ -487,66 +543,45 @@ ctx: context [
 		caret/2: caret-to-offset rt curpos
 		caret/3: as-pair caret/2/1 caret/2/2 + rich-text/line-height? rt 1;caret-to-offset/lower rt curpos - 1
 		reposition count-lines at rt/text curpos
-		show rt
+		;show rt
 	]
 	system/view/auto-sync?: off
 	view/flags lay: layout/options/tight [
+		title "Edit Red file"
 		backdrop white
 		panel 800x50 [
 			origin 0x0 
 			options: panel 800x50 [
-				panel [
-					origin 0x0 
-					files: drop-list 200 with [data: read %.] 
-					on-change [
-						rt/offset: layer/offset: 0x0
-						rt/text: read pick face/data face/selected
-						rt/data/4/2: length? rt/text
-						show rt
-						rt/size/y: layer/size/y: second size-text rt
-						scr/max-size: rich-text/line-count? rt
-						scr/position: 1
-						scr/page: 1
-						scr/page-size: bs/size/y / rich-text/line-height? rt 1
-						clear steps
-						recolor
-						anchor: curpos: 1
-						rt/draw: compose [
-							pen black caret: line 
-								(as-pair 0 y: second caret-to-offset rt 1) 
-								(as-pair 0 y + rich-text/line-height? rt 1);second caret-to-offset/lower rt 0)
-						]
-						rt/rate: 3
-						if step/data [step/actors/on-change step none]
-						set-focus bs
-						show lay
-					]
-					button "Dir..." [
-						files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
-						clear rt/data clear rt/text
-						show files
-					] 
-				]
+				;panel [
+				;	origin 0x0 
+				;	files: drop-list 200 with [data: read %.] 
+				;	on-change [open-file pick face/data face/selected]
+				;	button "Dir..." [
+				;		files/data: filter read change-dir request-dir/dir normalize-dir %. ".red"
+				;		clear rt/data clear rt/text
+				;		show files
+				;	] 
+				;]
 				panel 210x30 [
 					origin 0x0 
 					edit: radio 45 "Edit" data yes [clear pos set-focus bs attempt [show lay]]
 					tips: radio 45 "Tips" [set-focus bs cnt: 0 attempt [show lay]];remove `attempt` -> Stack overflow!
-					expr: radio 45 "Expr" [set-focus bs attempt [show lay]];Stack overflow!
+					expr: radio 45 "Expr" [set-focus bs cnt: 0 attempt [show lay]];Stack overflow!
 					step: radio 45 "Step" [
 						if 1 = cnt: cnt + 1 [
-							_break: false
+							;_break: false
 							clear pos
 							clear last-find
 							either face/data [
 								cnt: 0
 								either empty? steps [
 									_str1: head rt/text
-									scr/position: 1
-									rt/offset: layer/offset: 0x0
+									;scr/position: 1
+									;rt/offset: layer/offset: 0x0
 									_i2: index? _str2: arg-scope _str1 none
 									repend rt/data [as-pair 1 _i2 - 1 'backdrop sky]
 								][
-									prev-step _break: true
+									prev-step ;_break: true
 								]
 							][
 								repend steps [_str1 _str2] 
@@ -583,6 +618,16 @@ ctx: context [
 				cursor I-beam 
 				on-time [face/draw/2: pick [glass black] face/draw/2 = 'black show face]
 				on-menu [find-word event]
+				;on-mid-down [wheel-pos: event/offset] ; TBD?
+				;all-over on-over [
+				;	if event/mid-down? [
+				;		rt/offset: layer/offset: as-pair 0 
+				;			max 
+				;				min 0 rt/offset/y + (wheel-pos/y - event/offset/y) 
+				;				negate rt/size/y - bs/size/y
+				;		show bs
+				;	]
+				;]
 				at 0x0 layer: box with [
 					size: initial-size - 15x0
 					menu: find-menu
@@ -607,7 +652,7 @@ ctx: context [
 							]
 						]
 					][
-						str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset skp
+						str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset - rt/offset skp
 						case [
 							br: any [find/match br brc find/match back str brc][
 								in-brc: yes
@@ -624,9 +669,15 @@ ctx: context [
 									tip/text: help-string :wrd
 								]
 								tip/size/y: 20 + second size-text tip
-								tip/offset: min 
-									max 0x40 event/offset + face/offset + as-pair 30 0 - (tip/size/y / 2)
-									bs/size - tip/size
+								either (event/offset/x - face/offset/x) > tip/size/x [
+									tip/offset: min 
+										max 0x40 event/offset + face/offset + as-pair 0 - tip/size/x - 30 0 - (tip/size/y / 2)
+										bs/size - tip/size
+								][
+									tip/offset: min 
+										max 0x40 event/offset + face/offset + as-pair 30 0 - (tip/size/y / 2)
+										bs/size - tip/size
+								]
 								tip/data/1/2: length? tip/text
 								tip/visible?: yes
 								show tip
@@ -643,6 +694,9 @@ ctx: context [
 			scr: get-scroller face 'vertical
 		]
 		on-scroll [
+			;print [ event/type event/key event/picked event/flags ]
+			;foreach attr exclude words-of scr [parent window][print [attr ":" get attr]]
+			;foreach attr exclude system/catalog/accessors/event! [face parent window][print [attr ":" attempt [get/any event/:attr]]]
 			unless event/key = 'end [
 				scroll scr/position: min max 1 switch event/key [
 					track [event/picked]
@@ -681,30 +735,56 @@ ctx: context [
 				show rt
 			]
 		]
+		;on-key-up [
+		;	switch event/key [
+		;		left-control right-control [clear pos show rt]
+		;	]
+		;]
 		on-down [
-			either step/data [
+			either step/data [;any [step/data event/ctrl?] [
+				;if not step/data [do-actor step none 'change show step]
 				clear pos
-				repend steps [_str1 _str2]
+				if step/data [repend steps [_str1 _str2]]
 				_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp
 				_i2: index? _str2: arg-scope _str1 none
 				repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
 				if (count-lines _str2) > (scr/position + scr/page-size)[
 					scr/position: count-lines _str1
-					rt/offset: layer/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1
+					rt/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1 ;layer/offset: 
 				]
 				show bs
 			][set-caret event]
+		]
+		all-over on-over [
+			if event/ctrl? [
+				str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset skp
+				
+				scope str
+			]
+			;curpos: offset-to-caret rt event/offset
+			;rt/data/1: as-pair min anchor curpos absolute anchor - curpos
+			;show rt
 		]
 		at 0x0 tip: rich-text "" 400x50 left navy hidden with [data: [1x0 255.255.255]]
 		do [rt/parent: bs layer/parent: bs]
 	] [
 		offset: 300x50
+		menu: ["File" ["New..." new "Open..." open "Save" save "Save as..." save-as]; "Save copy" save-copy]]
 		actors: object [
 			max-x: max-y: 0
 			cur-y: 10
 			lim: func [:z face][face/offset/:z + face/size/:z]
 			opts: options/pane
-			on-resizing: func [face event /local _last diff][
+			on-menu: func [face [object!] event [event!]][
+				switch event/picked [
+					new [open-file none face/extra: none]
+					open [open-file second face/extra: split-path request-file/title/filter "Open file" ["Red" "*.red"]]
+					save [write face/extra/2 rt/text];[write pick files/data files/selected rt/text]
+					save-as [face/extra: split-path file: request-file/save/title "Save file" write file rt/text]
+					save-copy [];TBD
+				]
+			]
+			on-resizing: func [face [object!] event [event!] /local _last diff][
 				if any [
 					0 > diff: face/size/x - options/size/x
 					all [diff > 0 options/size/x < 900]
