@@ -8,6 +8,8 @@ Red syntax/expressions highligting
 3. If function is in beginning of block or parens, then block scope is shown on hovering, not expression scope. TBD
 4. Highlighting does not adapt to dialects (e.g. parse, VID, RTD). TBD
 5. Its's not editable. TBD
+  * First version 24.01
+  * Font-resizing too
 6. Not resizable. TBD
   * First version done 18.01
 7. No error-handling. TBD
