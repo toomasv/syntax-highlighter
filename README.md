@@ -25,4 +25,5 @@ Red syntax/expressions highligting
   - Different methods for moving between "Find"-, "Show"- and "Step"-highlighted elements: buttons, menu and keys (down = into while stepping) 
 11. Layout is done according to W10. It may show with defects on other platforms/versions.
 12. Hovering works for limited range. After ~1.5 pages hovering stops working. Reason is not yet clear. Can be a Red bug or something wrong with my code.
+  - Now works throughout longer files too 25.01
 13. Using `bold` in syntax highlighting style definitions has no effect on `caret-to-offset` calculations, which causes misplacement of hover-reactive boxes on layer above rich-text. Red bug?
