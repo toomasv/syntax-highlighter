@@ -480,10 +480,11 @@ ctx: context [
 								]
 							]
 							#"^V" [;Paste
+								parse txt: read-clipboard [any [change [cr lf] lf | skip]]
 								either rt/data/1/y > 0 [
-									change/part at rt/text curpos: rt/data/1/x txt: read-clipboard rt/data/1/y
+									change/part at rt/text curpos: rt/data/1/x txt rt/data/1/y
 								][
-									insert at rt/text curpos txt: read-clipboard
+									insert at rt/text curpos txt
 								]
 								recolor
 								set-caret curpos + length? txt
