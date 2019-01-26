@@ -5,7 +5,7 @@ Red [
 	Last: 2019-01-26
 	Purpose: {Study of syntax highlighting}
 ]
-do %info.red
+do %info.red ;#include
 ctx: context [
 	ws: charset " ^/^-"
 	opn: charset "[("
@@ -22,7 +22,8 @@ ctx: context [
 	opn-brc: charset "{[(^"" ;"
 	opp: "[][()({}{^"^""
 	rt: layer: bs: br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-num: needle: none
-	_i1: _i2: _str1: _str2: btns: caret: found: none
+	_i1: _i2: _str1: _str2: btns: caret: found: dont-move: ctrl?: none
+	save-bd: clear []
 	curpos: anchor: 1
 	crt-start: crt-end: 1 
 	crt-diff: 0
@@ -64,9 +65,6 @@ ctx: context [
 		set-focus bs
 		show lay
 	]
-;	find-matching: func [str needle][
-;		
-;	]
 	highlight: function [s1 [string!] s2 [string!] style [tuple! block!]] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
 	skip-some: func [str [string!] chars [bitset!]][while [find/match str chars][str: next str] str]
 	count-lines: function [pos [string!]][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
@@ -299,23 +297,23 @@ ctx: context [
 		][modal popup]
 		needle
 	]
-	find-again: func [prv [logic!]][
+	find-again: func [prev [logic!]][
 		switch last-find/1 [
 			show [
-				pos1: find rt/data [backdrop 0.200.0]
+				pos1: find pos [backdrop 0.200.0]
 				pos1/2: 100.255.100
-				pos1: skip pos1 pick [-2 4] prv
-				either prv [
-					unless pos1/1 = 100.255.100 [pos1: next find/last rt/data 'backdrop]
+				pos1: skip pos1 pick [-2 4] prev
+				either prev [
+					unless pos1/1 = 100.255.100 [pos1: next find/last pos 'backdrop]
 				][
-					if empty? pos1 [pos1: next find rt/data 'backdrop]
+					if empty? pos1 [pos1: next find pos 'backdrop]
 				]
 				pos1/1: 0.200.0
 				reposition count-lines at rt/text pos1/-2/1
 			]
 			find [
 				clear pos
-				if str1: either prv [
+				if str1: either prev [
 					any [
 						either head? last-find/2 [
 							find/reverse tail rt/text needle
@@ -334,7 +332,7 @@ ctx: context [
 			]
 		]
 	]
-	find-menu: ["Find" find "Show" show "Prev" prev "Next" next "Inspect" insp]
+	find-menu: ["Find" find "Show" show "Prev" prev "Next" next]; "Inspect" insp]
 	find-word: func [event [event!]][
 		switch event/picked [
 			find [
@@ -380,11 +378,13 @@ ctx: context [
 	recolor: does [
 		text-start: at rt/text offset-to-caret rt ofs: as-pair 0 0 - rt/offset/y
 		text-end: at rt/text offset-to-caret rt ofs + bs/size
+		if pos [move/part pos save-bd length? pos]
 		clear at rt/data 6
 		collect/into [parse text-start rule] rt/data
 		clear at layer/draw 5
 		collect/into [parse rt/data box-rule] layer/draw
 		pos: tail rt/data
+		if not empty? save-bd [move/part save-bd pos length? save-bd]
 		system/view/platform/redraw layer
 	]
 	change-font-size: func [inc][
@@ -414,13 +414,13 @@ ctx: context [
 	set-caret: func [e [event! none! integer!]][
 		case [
 			event? e [ 
-				switch e/type [
+				switch e/type [probe e/key
 					down [
 						either e/shift? [
-							curpos: offset-to-caret rt either e/face = rt [e/offset][e/offset - rt/offset]
+							curpos: offset-to-caret rt offset e 
 							rt/data/1: as-pair min anchor curpos absolute anchor - curpos
 						][
-							anchor: curpos: offset-to-caret rt either e/face = rt [e/offset][e/offset - rt/offset]
+							anchor: curpos: offset-to-caret rt offset e 
 							rt/data/1/2: 0
 						]
 					]
@@ -469,7 +469,7 @@ ctx: context [
 							]
 							#"^A" [anchor: 1 curpos: 1 + length? rt/text];Select all
 							#"^C" [;Copy
-								if rt/data/1/y > 0 [write-clipboard copy/part at rt/text rt/data/1/x rt/data/1/y]
+								if rt/data/1/y > 0 [write-clipboard copy/part at rt/text rt/data/1/x rt/data/1/y dont-move: true]
 							]
 							#"^X" [;Cut
 								if rt/data/1/y > 0 [
@@ -514,6 +514,9 @@ ctx: context [
 									]
 								]
 							]
+							#"^[" [;Escape
+								clear pos clear last-find show rt 
+							]
 						][
 							curpos: index? pos1: insert at rt/text curpos e/key
 							if find opn-brc e/key [insert pos1 opp/(e/key)]
@@ -521,7 +524,7 @@ ctx: context [
 						]
 					]
 				]
-				either any [e/key = #"^A" all [e/shift? any [e/type = 'down find [left right down up end home] e/key]]] [
+				either any [find [#"^A" #"^C"] e/key all [e/shift? any [e/type = 'down find [left right down up end home] e/key]]] [
 					rt/data/1: as-pair min anchor curpos absolute anchor - curpos
 				][
 					anchor: curpos rt/data/1/2: 0
@@ -531,8 +534,9 @@ ctx: context [
 		]
 		caret/2: caret-to-offset rt curpos
 		caret/3: as-pair caret/2/1 caret/2/2 + rich-text/line-height? rt 1
-		reposition count-lines at rt/text curpos
+		unless dont-move [reposition count-lines at rt/text curpos]
 	]
+	offset: func [e][either e/face = rt [e/offset][e/offset - rt/offset]]
 	system/view/auto-sync?: off
 	view/flags/no-wait lay: layout/options/tight [
 		title "New file"
@@ -593,16 +597,6 @@ ctx: context [
 				cursor I-beam 
 				on-time [face/draw/2: pick [glass black] face/draw/2 = 'black show face]
 				on-menu [find-word event]
-				;on-mid-down [wheel-pos: event/offset] ; TBD?
-				;all-over on-over [
-				;	if event/mid-down? [
-				;		rt/offset: layer/offset: as-pair 0 
-				;			max 
-				;				min 0 rt/offset/y + (wheel-pos/y - event/offset/y) 
-				;				negate rt/size/y - bs/size/y
-				;		show bs
-				;	]
-				;]
 				at 0x0 layer: box with [
 					size: initial-size - 15x0
 					menu: find-menu
@@ -621,8 +615,8 @@ ctx: context [
 								tip/visible?: no
 								show tip
 							]
-							expr/data [
-								clear back find pos 'backdrop
+							any [expr/data all [edit/data ctrl?]] [
+								clear pos ;back find pos 'backdrop
 								show rt
 							]
 						]
@@ -657,7 +651,7 @@ ctx: context [
 								tip/visible?: yes
 								show tip
 							]
-							expr/data [scope str]
+							any [expr/data all [edit/data ctrl?]] [scope str]
 						]
 					]
 				]
@@ -691,28 +685,32 @@ ctx: context [
 			switch/default event/key [
 				left up [case [
 					all [step/data empty? last-find] [prev-step]
-					all [tips/data find [show find] last-find/1][find-again true]
+					all [find [show find] last-find/1][find-again true] ;tips/data 
 					edit/data [set-caret event]
 				]]
 				right [case [
 					all [step/data empty? last-find] [next-step]
-					all [tips/data find [show find] last-find/1] [find-again false]
+					all [find [show find] last-find/1] [find-again false] ;tips/data 
 					edit/data [set-caret event]
 				]]
 				down [case [
 					all [step/data empty? last-find] [into-step]
-					all [tips/data find [show find] last-find/1] [find-again false]
+					all [find [show find] last-find/1] [find-again false] ;tips/data 
 					edit/data [set-caret event]
 				]]
 				#"^M" [either all [step/data empty? last-find] [do-step][set-caret event]] ;enter
 			][
 				set-caret event
-				show rt
+			]
+		]
+		on-key-down [
+			switch event/key [
+				left-control right-control [ctrl?: yes]
 			]
 		]
 		on-key-up [
 			switch event/key [
-				left-control right-control [clear pos show rt]
+				left-control right-control [ctrl?: no clear pos show rt]
 			]
 		]
 		on-down [
@@ -720,21 +718,15 @@ ctx: context [
 				;if not step/data [do-actor step none 'change show step]
 				clear pos
 				if step/data [repend steps [_str1 _str2]]
-				_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt event/offset skp
+				_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt offset event skp
 				_i2: index? _str2: arg-scope _str1 none
 				repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
 				if (count-lines _str2) > (scr/position + scr/page-size)[
 					scr/position: count-lines _str1
-					rt/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1 ;layer/offset: 
+					rt/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1 
 				]
 				show bs
 			][set-caret event]
-		]
-		all-over on-over [
-			if event/ctrl? [
-				str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset skp
-				scope str
-			]
 		]
 		at 0x0 tip: rich-text "" 400x50 left navy hidden with [data: [1x0 255.255.255]]
 		do [rt/parent: bs layer/parent: bs]
