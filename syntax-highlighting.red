@@ -2,10 +2,10 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-26
+	Last: 2019-01-28
 	Purpose: {Study of syntax highlighting}
 ]
-do %info.red ;#include
+#include %info.red
 ctx: context [
 	ws: charset " ^/^-"
 	opn: charset "[("
@@ -31,6 +31,7 @@ ctx: context [
 	cnt: 0
 	steps: clear []
 	last-find: []; act str1 i1 len
+	font-coeficent: #(9 .9765 10 .965 11 .955 12 .993 13 .982 14 .9725)
 	initial-size: 820x400
 
 	open-file: func [file][
@@ -51,10 +52,12 @@ ctx: context [
 		scr/max-size: rich-text/line-count? rt
 		scr/position: 1
 		scr/page: 1
-		scr/page-size: bs/size/y / rich-text/line-height? rt 1
+		scr/page-size: (bs/size/y / rich-text/line-height? rt 1) + 1
+		
 		clear steps
 		recolor
-		anchor: curpos: 1
+		anchor: curpos: 1 ;pick [8 1] lay/text = "New file"
+		;set-caret/dont-move curpos
 		rt/draw: compose [
 			pen black caret: line 
 				(as-pair 0 y: second caret-to-offset rt 1) 
@@ -65,13 +68,16 @@ ctx: context [
 		set-focus bs
 		show lay
 	]
+;	find-matching: func [str needle][
+;		
+;	]
 	highlight: function [s1 [string!] s2 [string!] style [tuple! block!]] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
 	skip-some: func [str [string!] chars [bitset!]][while [find/match str chars][str: next str] str]
-	count-lines: function [pos [string!]][i: 0 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
+	count-lines: function [pos [string!]][i: 1 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
 	prev-step: does [
 		unless empty? steps [
 			set [_str1 _str2] take/last/part steps 2
-			_i1: index? _str1
+			curpos: _i1: index? _str1
 			_i2: index? _str2
 			clear pos
 			repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
@@ -110,9 +116,9 @@ ctx: context [
 	move-backdrop: func [str [string!]][
 		_i2: index? _str2: arg-scope str none
 		clear pos
-		repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
-		if (count-lines _str2) > (scr/position + scr/page-size)[
-			reposition count-lines str
+		repend rt/data [as-pair curpos: _i1 _i2 - _i1 'backdrop sky]
+		if (count-lines _str2) > (scr/position + scr/page-size - 1) [
+			reposition/start/force count-lines str
 		]
 	]
 	get-function: function [path [path!]][
@@ -274,19 +280,35 @@ ctx: context [
 		recolor
 		show bs
 	]
-	adjust-scroller: func [][
+	adjust-scroller: does [
 		rt/size/y: second size-text rt 
-		scr/page-size: bs/size/y / rich-text/line-height? rt 1
+		scr/max-size: rich-text/line-count? rt
+		;scr/position: count-lines at rt/text curpos
+		scr/page-size: (bs/size/y / rich-text/line-height? rt 1) + 1
+		;scr/page: scr/position / scr/page-size + 1
 	]
-	reposition: func [line-num [integer!]][
+	reposition: func [line-num [integer!] /start /force][
+		;foreach prop exclude words-of scr [parent] [prin [prop ":" :scr/:prop ", "]] print ""
+		;print [line-num scr/position]
+		;print help-string rt
 		if any [
-			line-num < (scr/position)
-			line-num > (scr/position + scr/page-size - 1)
+			force
+			line-num < scr/position
+			line-num > (scr/position + scr/page-size - 1)		
 		][
-			scr/position: max 0 line-num - (scr/page-size / 3) 
-			rt/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1 
+			scr/position: max 1 line-num - either start [0][(scr/page-size / 3)]
+			scr/page: scr/position - 1 / scr/page-size + 1
+			;scr/page: line-num - 1 / scr/page-size + 1
+			rt/offset: as-pair 0 negate (scr/position - 1) * (rich-text/line-height? rt 1) * font-coeficent/(rt/data/5)
 			recolor
 		]
+		;if line-num > (scr/position + scr/page-size - 1) [
+		;	scr/position: (min scr/max-size line-num) - scr/page-size + 1 ;(scr/page-size / 3) 
+		;	scr/page: line-num - 1 / scr/page-size
+		;	rt/offset: as-pair 0 negate (scr/position - 1) * (rich-text/line-height? rt 1) * .993;.955;.965
+		;	recolor
+		;]
+		;print help-string scr
 		set-focus bs
 		show lay
 	]
@@ -308,8 +330,8 @@ ctx: context [
 				][
 					if empty? pos1 [pos1: next find pos 'backdrop]
 				]
-				pos1/1: 0.200.0
-				reposition count-lines at rt/text pos1/-2/1
+				pos1/1: 0.200.0 
+				reposition count-lines at rt/text curpos: pos1/-2/1
 			]
 			find [
 				clear pos
@@ -325,7 +347,7 @@ ctx: context [
 				][
 					any [find next last-find/2 needle find rt/text needle]
 				][
-					last-find/3: index? last-find/2: str1
+					curpos: last-find/3: index? last-find/2: str1
 					repend rt/data [as-pair last-find/3 last-find/4 'backdrop cyan]
 					reposition count-lines str1
 				]
@@ -339,7 +361,7 @@ ctx: context [
 				clear pos
 				if needle: ask-find [
 					either str1: find rt/text needle [
-						i1: index? str1
+						curpos: i1: index? str1
 						len: length? needle
 						;clear pos
 						repend rt/data [as-pair i1 len 'backdrop cyan]
@@ -350,7 +372,7 @@ ctx: context [
 			]
 			show [
 				clear pos
-				i0: index? str: find/reverse/tail at rt/text offset-to-caret rt event/offset skp4
+				i0: index? str: find/reverse/tail at rt/text offset-to-caret rt offset event skp4 
 				str2: find str skp3
 				elem: copy/part str str2
 				str1: rt/text
@@ -366,6 +388,7 @@ ctx: context [
 						repend rt/data [as-pair i: i1 - len len 'backdrop either i = i0 [0.200.0][100.255.100]]
 					]
 				]
+				curpos: i0
 				repend clear last-find ['show str i0 len]
 				show rt
 			]
@@ -387,12 +410,13 @@ ctx: context [
 		if not empty? save-bd [move/part save-bd pos length? save-bd]
 		system/view/platform/redraw layer
 	]
-	change-font-size: func [inc][
-		rt/data/5: rt/data/5 + inc 
+	change-font-size: func [size][;func [inc][
+		;rt/data/5: rt/data/5 + inc 
+		rt/data/5: size
 		show rt 
-		set-caret none 
 		adjust-scroller 
-		reposition count-lines at rt/text curpos 
+		set-caret curpos ;none 
+		;reposition count-lines at rt/text curpos 
 	]
 	adjust-markers: func [pos1 [string!] /length len /only /local i1 pos3][
 		len: any [len 1]
@@ -411,10 +435,10 @@ ctx: context [
 		show rt
 		unless only [recolor]
 	]
-	set-caret: func [e [event! none! integer!]][
+	set-caret: func [e [event! none! integer!] /dont-move][
 		case [
 			event? e [ 
-				switch e/type [probe e/key
+				switch e/type [
 					down [
 						either e/shift? [
 							curpos: offset-to-caret rt offset e 
@@ -441,18 +465,18 @@ ctx: context [
 								]
 							]
 							down [
-								curpos: min 1 + length? rt/text offset-to-caret rt 
-									((caret-to-offset rt curpos) + as-pair 0 3 + rich-text/line-height? rt 1)
+								curpos: min 1 + length? rt/text    offset-to-caret rt 
+									((caret-to-offset rt curpos) + as-pair 0 rich-text/line-height? rt 1)
 							]
 							up [curpos: max 1 offset-to-caret rt (caret-to-offset rt curpos) - 0x3]
 							page-down [
 								curpos: min 1 + length? rt/text offset-to-caret rt (
-									(caret-to-offset rt curpos) + as-pair 0 bs/size/y
+									(caret-to-offset rt curpos) + as-pair 0 scr/page-size + 1 * rich-text/line-height? rt 1 ;bs/size/y
 								)
 							]
 							page-up [
 								curpos: max 1 offset-to-caret rt (
-									(caret-to-offset rt curpos) - as-pair 0 bs/size/y
+									(caret-to-offset rt curpos) - as-pair 0 scr/page-size + 1 * rich-text/line-height? rt 1 ;bs/size/y
 								)
 							]
 							end [
@@ -480,9 +504,9 @@ ctx: context [
 								]
 							]
 							#"^V" [;Paste
-								parse txt: read-clipboard [any [change [cr lf] lf | skip]]
+								parse txt: read-clipboard [any [change crlf lf | skip]]
 								either rt/data/1/y > 0 [
-									change/part at rt/text curpos: rt/data/1/x txt rt/data/1/y
+									change/part at rt/text curpos: rt/data/1/x txt rt/data/1/y ;: read-clipboard
 								][
 									insert at rt/text curpos txt
 								]
@@ -516,7 +540,8 @@ ctx: context [
 								]
 							]
 							#"^[" [;Escape
-								clear pos clear last-find show rt 
+								;if last-find/3 [curpos: last-find/3]
+								clear pos clear last-find ;show rt 
 							]
 						][
 							curpos: index? pos1: insert at rt/text curpos e/key
@@ -579,8 +604,11 @@ ctx: context [
 					button "Next" [either all [step/data empty? last-find] [next-step][find-again false]]
 					button "Into" [either all [step/data empty? last-find] [into-step][find-again false]]
 					button "Recolor" [recolor set-focus bs attempt [show lay]]
-					button "A+" 30 [change-font-size 1]
-					button "A-" 30 [change-font-size -1]
+					;button "A+" 30 [change-font-size 1]
+					;button "A-" 30 [change-font-size -1]
+					drop-list 40 data ["9" "10" "11" "12" "13" "14"] select 2 on-change [
+						change-font-size to-integer pick face/data face/selected
+					]
 				]
 			]
 		]
@@ -592,12 +620,22 @@ ctx: context [
 				origin 0x0 
 				rt: rich-text "Red []^/" with [
 					size: initial-size - 15x0
-					data: [1x0 backdrop silver 1x0 10]
+					data: [1x0 backdrop silver 1x0 9]
 					menu: find-menu
 				]
 				cursor I-beam 
 				on-time [face/draw/2: pick [glass black] face/draw/2 = 'black show face]
 				on-menu [find-word event]
+				;on-mid-down [wheel-pos: event/offset] ; TBD?
+				;all-over on-over [
+				;	if event/mid-down? [
+				;		rt/offset: layer/offset: as-pair 0 
+				;			max 
+				;				min 0 rt/offset/y + (wheel-pos/y - event/offset/y) 
+				;				negate rt/size/y - bs/size/y
+				;		show bs
+				;	]
+				;]
 				at 0x0 layer: box with [
 					size: initial-size - 15x0
 					menu: find-menu
@@ -681,20 +719,23 @@ ctx: context [
 				show bs
 			]
 		]
-		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size + 1]
+		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size]
 		on-key [
 			switch/default event/key [
 				left up [case [
+					ctrl? [scroll scr/position: min max 1 scr/position - 1 scr/max-size]
 					all [step/data empty? last-find] [prev-step]
 					all [find [show find] last-find/1][find-again true] ;tips/data 
 					edit/data [set-caret event]
 				]]
 				right [case [
+					ctrl? [scroll scr/position: min max 1 scr/position + 1 scr/max-size]
 					all [step/data empty? last-find] [next-step]
 					all [find [show find] last-find/1] [find-again false] ;tips/data 
 					edit/data [set-caret event]
 				]]
 				down [case [
+					ctrl? [scroll scr/position: min max 1 scr/position + 1 scr/max-size]
 					all [step/data empty? last-find] [into-step]
 					all [find [show find] last-find/1] [find-again false] ;tips/data 
 					edit/data [set-caret event]
@@ -702,6 +743,7 @@ ctx: context [
 				#"^M" [either all [step/data empty? last-find] [do-step][set-caret event]] ;enter
 			][
 				set-caret event
+				;show rt
 			]
 		]
 		on-key-down [
@@ -711,7 +753,10 @@ ctx: context [
 		]
 		on-key-up [
 			switch event/key [
-				left-control right-control [ctrl?: no clear pos show rt]
+				left-control right-control [
+					ctrl?: no 
+					if all [edit/data empty? last-find] [clear pos show rt]
+				]
 			]
 		]
 		on-down [
@@ -724,11 +769,20 @@ ctx: context [
 				repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
 				if (count-lines _str2) > (scr/position + scr/page-size)[
 					scr/position: count-lines _str1
-					rt/offset: as-pair 0 2 + negate scr/position * rich-text/line-height? rt 1 
+					rt/offset: as-pair 0 negate scr/position - 1 * rich-text/line-height? rt 1 
 				]
 				show bs
 			][set-caret event]
 		]
+		;all-over on-over [
+		;	if all [event/ctrl? edit/data] [
+		;		either str: find/reverse/tail at rt/text offset-to-caret rt offset event skp2 [
+		;			scope str
+		;		][
+		;			clear pos show rt
+		;		]
+		;	]
+		;]
 		at 0x0 tip: rich-text "" 400x50 left navy hidden with [data: [1x0 255.255.255]]
 		do [rt/parent: bs layer/parent: bs]
 	] [
@@ -748,7 +802,7 @@ ctx: context [
 					save-copy []
 				]
 			]
-			on-resizing: func [face [object!] event [event!] /local _last diff][
+			resize: func [face [object!] event [event!] /local _last diff][
 				if any [
 					0 > diff: face/size/x - options/size/x
 					all [diff > 0 options/size/x < 900]
@@ -775,10 +829,13 @@ ctx: context [
 				bs/offset/y: options/offset/y + options/size/y + 10
 				bs/size: face/size - 12x60
 				rt/size/x: layer/size/x: bs/size/x - 18
-				scr/max-size: rich-text/line-count? rt
-				scr/page-size: bs/size/y / rich-text/line-height? rt 1
+				adjust-scroller
+				;scr/max-size: rich-text/line-count? rt
+				;scr/page-size: bs/size/y / rich-text/line-height? rt 1
 				show face
 			]
+			on-resizing: func [face event][resize face event]
+			on-resize: func [face event][resize face event]
 		]
 	] 'resize
 	renew-view
