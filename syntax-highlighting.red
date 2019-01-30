@@ -31,7 +31,6 @@ ctx: context [
 	cnt: 0
 	steps: clear []
 	last-find: []; act str1 i1 len
-	font-coeficent: #(9 .9765 10 .965 11 .955 12 .993 13 .982 14 .9725)
 	coef: 1
 	initial-size: 820x400
 
@@ -48,13 +47,12 @@ ctx: context [
 	set-coef: has [sz][
 		sz: (rich-text/line-count? rt) * (rich-text/line-height? rt 1) 
 		coef: rt/size/y * 1.0 / sz	
-		;print [rt/size/y sz coef]
 	]
 	renew-view: does [
 		rt/offset: 0x0 
 		rt/data/4/2: length? rt/text
 		show rt
-		rt/size/y: second size-text rt ;max bs/size/y 
+		rt/size/y: second size-text rt
 		set-coef
 		scr/max-size: rich-text/line-count? rt
 		scr/position: 1
@@ -64,7 +62,6 @@ ctx: context [
 		clear steps
 		recolor
 		anchor: curpos: 1 
-		;set-caret/dont-move curpos
 		rt/draw: compose [
 			pen black caret: line 
 				(as-pair 0 y: second caret-to-offset rt 1) 
@@ -212,42 +209,49 @@ ctx: context [
 	]
 	scope: func [str [string!] /color col /local fn fnc inf clr arg i1 i2 s1 s2][
 		fn: load/next str 's1
-		fnc: either word? fn [fn][fn1: get-function fn either 1 = length? fn1 [fn1/1][fn1]]
-		inf: info :fnc
-		clr: any [col yello] 
-		either op! = inf/type [
-			s0: arg-scope/left str none
-			i1: index? s0
-			i2: -1 + index? str
-			repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
-			i2: index? s2: arg-scope/right s1 none
-			while [find ws s1/1][s1: next s1]
-			i1: index? s1
-			repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
-		][
-			foreach arg inf/arg-names [
-				i2: index? s2: arg-scope s1 inf/args/:arg
+		case [
+			all [word? fn any-function? get/any :fn] [fnc: fn]
+			all [path? fn fn1: get-function fn 1 = length? fn1] [fnc: fn/1]
+			all [path? fn fn1] [fnc: fn1]
+			'else [fnc: none]
+		]
+		if fnc [
+			inf: info :fnc
+			clr: any [col yello] 
+			either op! = inf/type [
+				s0: arg-scope/left str none
+				i1: index? s0
+				i2: -1 + index? str
+				repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
+				i2: index? s2: arg-scope/right s1 none
 				while [find ws s1/1][s1: next s1]
 				i1: index? s1
 				repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
-				s1: :s2
+			][
+				foreach arg inf/arg-names [
+					i2: index? s2: arg-scope s1 inf/args/:arg
+					while [find ws s1/1][s1: next s1]
+					i1: index? s1
+					repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
+					s1: :s2
+				]
 			]
-		]
-		if all [path? fn any [word? fnc (length? fn) > (length? fnc)]][
-			foreach ref either word? fnc [next fn][skip fn length? fnc] [
-				if 0 < length? refs: inf/refinements/:ref [
-					foreach type values-of refs [
-						i2: index? s2: arg-scope s1 type
-						while [find ws s1/1][s1: next s1]
-						i1: index? s1
-						repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
-						s1: :s2
+			if all [path? fn any [word? fnc (length? fn) > (length? fnc)]][
+				foreach ref either word? fnc [next fn][skip fn length? fnc] [
+					if 0 < length? refs: inf/refinements/:ref [
+						foreach type values-of refs [
+							i2: index? s2: arg-scope s1 type
+							while [find ws s1/1][s1: next s1]
+							i1: index? s1
+							repend rt/data [as-pair i1 i2 - i1 'backdrop clr: clr - 30]
+							s1: :s2
+						]
 					]
 				]
 			]
+			show rt
+			s1
 		]
-		show rt
-		s1
 	]
 	filter: func [series [block!] _end [string!]][
 		collect [foreach file series [if find/match skip tail file -4 _end [keep file]]]
@@ -262,14 +266,22 @@ ctx: context [
 				any-string? el	[highlight s s2 orange]
 				refinement? el	[highlight s s2 papaya]
 				word? el		[case [
-					any-function? get/any el [highlight s s2 brick]; reduce ['bold blue]]
+					function? get/any el [highlight s s2 brick]; reduce ['bold blue]]
+					op? get/any el [highlight s s2 brick]
+					any-function? get/any el [highlight s s2 crimson]
 					;immediate? get/any el [highlight s s2 leaf]
-					'else [highlight s s2 maroon]
+					'else [highlight s s2 violet]
 				]]
 				path? el		[
 					case [
-						any-function? get/any el/1 [highlight s s2: find s #"/" brick]
-						fn: get-function :el [highlight s s2: find/tail s form fn brick] 
+						function? get/any el/1 [highlight s s2: find s #"/" brick]
+						op? get/any el/1 [highlight s s2: find s #"/" brick]
+						any-function? get/any el/1 [highlight s s2: find s #"/" crimson]
+						fn: get-function :el [
+							highlight s s2: find/tail s form fn brick
+							highlight s find s #"/" violet
+						] 
+						'else [highlight s s2: find s #"/" violet]
 					]
 				] 
 				any-word? el	[highlight s s2 navy]
@@ -280,13 +292,15 @@ ctx: context [
 			]
 		) | [if (s2: find s ws) | (s2: tail s)] (highlight s s2 red)] :s2
 	]]
+	;               brc       func op   any-func   word
+	boxes: reduce [rebolor '| brick '| crimson '| violet]
 	box-rule: bind [
 		any [p: 
-			; func        brc           word
-			[178.34.34 | 142.128.110 | 128.0.0](
+			boxes (
 				address: back p 
 				keep reduce ['box (caret-to-offset rt address/1/1) + rt/offset + 0x2
-					(caret-to-offset rt pos: address/1/1 + address/1/2) + (as-pair 0 -2 + rich-text/line-height? rt pos) + rt/offset
+					(caret-to-offset rt pos: address/1/1 + address/1/2) + 
+					(as-pair 0 -2 + rich-text/line-height? rt pos) + rt/offset
 				]
 			)
 		| skip
@@ -301,9 +315,7 @@ ctx: context [
 		rt/size/y: second size-text rt 
 		set-coef
 		scr/max-size: rich-text/line-count? rt
-		;scr/position: count-lines at rt/text curpos
 		scr/page-size: (bs/size/y / rich-text/line-height? rt 1) + 1
-		;scr/page: scr/position / scr/page-size + 1
 	]
 	reposition: func [line-num [integer!] /start /force][
 		if any [
@@ -313,7 +325,7 @@ ctx: context [
 		][
 			scr/position: max 1 line-num - either start [0][scr/page-size / 3]
 			scr/page: scr/position - 1 / scr/page-size + 1
-			rt/offset: as-pair 0 negate (scr/position - 1) * (rich-text/line-height? rt 1) * coef; font-coeficent/(rt/data/5)
+			rt/offset: as-pair 0 negate (scr/position - 1) * (rich-text/line-height? rt 1) * coef
 			recolor
 		]
 		set-focus bs
@@ -670,12 +682,21 @@ ctx: context [
 								show bs
 							]
 							tips/data [
-								attempt [wrd: to-word copy/part str find str skp2]
+								parse layer/draw [
+									some [
+										'box bx: pair! 
+										if (within? event/offset bx/1 - 0x1 bx/2 - bx/1 + 0x2) (in-box: bx) 
+									| 	skip
+									]
+								]
+								wrd: load probe copy/part 
+									at rt/text offset-to-caret rt in-box/1 + 0x3 - rt/offset 
+									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset
 								either event/ctrl? [
 									tip-text/text: rejoin [type? fn: get :wrd "!^/"]
 									append tip-text/text either any-function? :fn [mold spec-of :fn][help-string :fn]
 									case [
-										function? :fn [append tip-text/text mold body-of :fn]
+										any [function? :fn op? fn] [append tip-text/text mold body-of :fn]
 										bitset? :fn [
 											append tip-text/text "Chars: "
 											append tip-text/text mold rejoin collect [repeat i length? :fn [if pick :fn i [keep to-char i]]]
@@ -699,7 +720,7 @@ ctx: context [
 								tip/visible?: yes
 								show tip
 							]
-							any [expr/data all [edit/data ctrl?]] [scope str]
+							any [expr/data all [edit/data ctrl?]] [if all [str not empty? str] [scope str]]
 						]
 					]
 				]
@@ -765,16 +786,13 @@ ctx: context [
 			]
 		]
 		on-down [
-			either step/data [;any [step/data event/ctrl?] [
-				;if not step/data [do-actor step none 'change show step]
+			either step/data [
 				clear pos
-				;if step/data [
-					repend steps [_str1 _str2]
-				;]
+				repend steps [_str1 _str2]
 				_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt offset event skp
 				_i2: index? _str2: arg-scope _str1 none
 				repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
-				if (count-lines _str2) > (scr/position + scr/page-size)[
+				if (count-lines _str2) > (scr/position + scr/page-size) [
 					scr/position: count-lines _str1
 					rt/offset: as-pair 0 negate scr/position - 1 * rich-text/line-height? rt 1 
 				]
