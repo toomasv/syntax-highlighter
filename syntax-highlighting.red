@@ -568,8 +568,9 @@ ctx: context [
 							curpos: index? pos1: insert at rt/text curpos e/key
 							if find opn-brc e/key [insert pos1 opp/(e/key)]
 							adjust-markers pos1
-							if e/key = #"^M" [adjust-scroller show rt]
+							;if e/key = #"^M" [adjust-scroller show rt]
 						]
+						adjust-scroller show rt
 					]
 				]
 				either any [find [#"^A" #"^C"] e/key all [e/shift? any [e/type = 'down find [left right down up end home] e/key]]] [
