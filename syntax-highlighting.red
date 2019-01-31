@@ -2,7 +2,7 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-30
+	Last: 2019-01-31
 	Purpose: {Study of syntax highlighting}
 ]
 #include %info.red
@@ -22,7 +22,7 @@ ctx: context [
 	opn-brc: charset "{[(^"" ;"
 	opp: "[][()({}{^"^""
 	rt: layer: bs: br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-num: needle: none
-	_i1: _i2: _str1: _str2: btns: caret: found: dont-move: ctrl?: none
+	_i1: _i2: _str1: _str2: btns: caret: found: found-del: dont-move: ctrl?: deleted: none
 	save-bd: clear []
 	curpos: anchor: 1
 	crt-start: crt-end: 1 
@@ -341,16 +341,21 @@ ctx: context [
 	find-again: func [prev [logic!]][
 		switch last-find/1 [
 			show [
-				pos1: find pos [backdrop 0.200.0]
-				pos1/2: 100.255.100
-				pos1: skip pos1 pick [-2 4] prev
+				either deleted [
+					pos1: skip found-del pick [-1 2] prev 
+					deleted: no
+				][
+					pos1: find pos [backdrop 0.200.0]
+					pos1/2: 100.255.100
+					pos1: skip pos1 pick [-2 4] prev
+				]
 				either prev [
 					unless pos1/1 = 100.255.100 [pos1: next find/last pos 'backdrop]
 				][
 					if empty? pos1 [pos1: next find pos 'backdrop]
 				]
 				pos1/1: 0.200.0 
-				reposition count-lines at rt/text curpos: pos1/-2/1
+				reposition count-lines at rt/text last-find/3: curpos: pos1/-2/1
 			]
 			find [
 				clear pos
@@ -530,36 +535,35 @@ ctx: context [
 								recolor
 								set-caret curpos + length? txt
 							]
-							delete [
-								either rt/data/1/y > 0 [
-									remove/part at rt/text curpos: rt/data/1/x rt/data/1/y
-									show rt
-									recolor
-									set-caret curpos
-								][
-									if curpos <= length? rt/text [
-										remove pos1: at rt/text curpos
+							delete #"^H" [ ;Delete and backspace
+								case [
+									rt/data/1/y > 0 [
+										remove/part pos1: at rt/text curpos: rt/data/1/x rt/data/1/y
+										recolor	set-caret curpos
+									]
+									not empty? last-find [
+										remove/part pos1: at rt/text curpos: last-find/3 last-find/4
+										found-del: find rt/data reduce [as-pair last-find/3 last-find/4 'backdrop]
+										found-del: remove/part found-del 3
+										adjust-markers/length/only at rt/text curpos + 1 negate last-find/4
+										if last-find/1 = 'show [deleted: yes]
+									]
+									'else [
+										case [
+											all [e/key = 'delete curpos <= length? rt/text] [
+												remove pos1: at rt/text curpos
+												recolor
+											]
+											all [e/key = #"^H" curpos > 1] [
+												remove pos1: at rt/text curpos: curpos - 1
+												recolor	set-caret curpos
+											]
+										]
 										adjust-markers/length pos1 -1
 									]
 								]
 							]
-							#"^H" [;Backspace
-								either rt/data/1/y > 0 [
-									remove/part pos1: at rt/text curpos: rt/data/1/x rt/data/1/y
-									recolor
-									set-caret curpos
-								][
-									if curpos > 1 [
-										remove pos1: at rt/text curpos: curpos - 1
-										set-caret curpos
-										adjust-markers/length pos1 -1
-									]
-								]
-							]
-							#"^[" [;Escape
-								;if last-find/3 [curpos: last-find/3]
-								clear pos clear last-find 
-							]
+							#"^[" [clear pos clear last-find] ;Escape
 						][
 							curpos: index? pos1: insert at rt/text curpos e/key
 							if find opn-brc e/key [insert pos1 opp/(e/key)]
@@ -690,7 +694,7 @@ ctx: context [
 									| 	skip
 									]
 								]
-								wrd: load probe copy/part 
+								wrd: load copy/part 
 									at rt/text offset-to-caret rt in-box/1 + 0x3 - rt/offset 
 									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset
 								either event/ctrl? [
@@ -751,13 +755,12 @@ ctx: context [
 		on-key [
 			switch/default event/key [
 				left up [case [
-					ctrl? [scroll scr/position: min max 1 scr/position - 1 scr/max-size]
+					all [event/key = 'up ctrl?] [scroll scr/position: min max 1 scr/position - 1 scr/max-size]
 					all [step/data empty? last-find] [prev-step]
 					all [find [show find] last-find/1][find-again true] 
 					edit/data [set-caret event]
 				]]
 				right [case [
-					ctrl? [scroll scr/position: min max 1 scr/position + 1 scr/max-size]
 					all [step/data empty? last-find] [next-step]
 					all [find [show find] last-find/1] [find-again false] 
 					edit/data [set-caret event]
