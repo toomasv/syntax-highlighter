@@ -2,11 +2,19 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-01-31
+	Last: 2019-02-02
 	Purpose: {Study of syntax highlighting}
 ]
+;starting-pos: length? words-of system/words
+;if all [value? 'ctx object? ctx value? 'ctx/in-ctx][
+;	ctx/new-words-in-default-context: clear []
+;	ctx/overloaded-predefined-words: clear []
+;	ctx/overloaded-undefined-words: clear []
+;]
 #include %info.red
 ctx: context [
+	in-ctx: self
+	sp: charset " ^-"
 	ws: charset " ^/^-"
 	opn: charset "[("
 	cls: charset ")]"
@@ -21,8 +29,13 @@ ctx: context [
 	skip-chars: charset "#$&"
 	opn-brc: charset "{[(^"" ;"
 	opp: "[][()({}{^"^""
-	rt: layer: bs: br: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: opts: len: line-num: needle: none
-	_i1: _i2: _str1: _str2: btns: caret: found: found-del: dont-move: ctrl?: deleted: none
+	rt: layer: bs: br: scr: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: len: line-num: needle: none
+	_i1: _i2: _str1: _str2: el: caret: found: found-del: dont-move: ctrl?: deleted: none
+	text-start: text-end: address: fnt: opts: edit: step: btns: tip: tips: expr: none
+	;new-words: none 
+	;new-words-in-default-context: clear []
+	;overloaded-predefined-words: clear []
+	;overloaded-undefined-words: clear []
 	save-bd: clear []
 	curpos: anchor: 1
 	crt-start: crt-end: 1 
@@ -49,10 +62,11 @@ ctx: context [
 		coef: rt/size/y * 1.0 / sz	
 	]
 	renew-view: does [
-		rt/offset: 0x0 
-		rt/data/4/2: length? rt/text
+		lns/offset: 0x0
+		rt/offset: 60x0 
+		rt/data/4/2: 1 + length? rt/text
 		show rt
-		rt/size/y: second size-text rt
+		lns/size/y: rt/size/y: second size-text rt
 		set-coef
 		scr/max-size: rich-text/line-count? rt
 		scr/position: 1
@@ -61,6 +75,9 @@ ctx: context [
 		
 		clear steps
 		recolor
+		renumber
+		lns/data/1/2: 1 + length? lns/text
+		show lns
 		anchor: curpos: 1 
 		rt/draw: compose [
 			pen black caret: line 
@@ -265,13 +282,15 @@ ctx: context [
 				string? el		[highlight s s2 gray]
 				any-string? el	[highlight s s2 orange]
 				refinement? el	[highlight s s2 papaya]
-				word? el		[case [
-					function? get/any el [highlight s s2 brick]; reduce ['bold blue]]
-					op? get/any el [highlight s s2 brick]
-					any-function? get/any el [highlight s s2 crimson]
-					;immediate? get/any el [highlight s s2 leaf]
-					'else [highlight s s2 violet]
-				]]
+				word? el		[
+					case [
+						function? get/any el [highlight s s2 brick]; reduce ['bold blue]]
+						op? get/any el [highlight s s2 brick]
+						any-function? get/any el [highlight s s2 crimson]
+						;immediate? get/any el [highlight s s2 leaf]
+						'else [highlight s s2 violet]
+					]
+				]
 				path? el		[
 					case [
 						function? get/any el/1 [highlight s s2: find s #"/" brick]
@@ -284,6 +303,19 @@ ctx: context [
 						'else [highlight s s2: find s #"/" violet]
 					]
 				] 
+				set-word? el 	[
+					;either (index? el) < index? 'starting-pos [;probe el
+					;	either unset? :system/words/(to-word :el) [
+					;		append overloaded-predefined-words to-word :el
+					;		highlight s s2 red
+					;	][
+					;		append overloaded-undefined-words to-word :el
+					;		highlight s s2 navy
+					;	]
+					;][
+						highlight s s2 navy
+					;]
+				]
 				any-word? el	[highlight s s2 navy]
 				any-path? el	[highlight s s2 water]
 				number? el		[highlight s s2 mint]
@@ -298,21 +330,21 @@ ctx: context [
 		any [p: 
 			boxes (
 				address: back p 
-				keep reduce ['box (caret-to-offset rt address/1/1) + rt/offset + 0x2
+				keep reduce ['box (caret-to-offset rt address/1/1) + rt/offset + -60x2
 					(caret-to-offset rt pos: address/1/1 + address/1/2) + 
-					(as-pair 0 -2 + rich-text/line-height? rt pos) + rt/offset
+					(as-pair 0 rich-text/line-height? rt pos) + rt/offset - 60x2
 				]
 			)
 		| skip
 		]
 	] :collect
 	scroll: func [pos [integer!]][
-		rt/offset: as-pair 0 pos - 1 * negate rich-text/line-height? rt 1 
+		lns/offset/y: rt/offset/y: to-integer pos - 1 * negate rich-text/line-height? rt 1 
 		recolor
 		show bs
 	]
 	adjust-scroller: does [
-		rt/size/y: second size-text rt 
+		lns/size/y: rt/size/y: second size-text rt 
 		set-coef
 		scr/max-size: rich-text/line-count? rt
 		scr/page-size: (bs/size/y / rich-text/line-height? rt 1) + 1
@@ -325,7 +357,7 @@ ctx: context [
 		][
 			scr/position: max 1 line-num - either start [0][scr/page-size / 3]
 			scr/page: scr/position - 1 / scr/page-size + 1
-			rt/offset: as-pair 0 negate (scr/position - 1) * (rich-text/line-height? rt 1) * coef
+			lns/offset/y: rt/offset/y: to-integer negate (scr/position - 1) * (rich-text/line-height? rt 1) * coef
 			recolor
 		]
 		set-focus bs
@@ -421,8 +453,14 @@ ctx: context [
 			]
 		]
 	]
-	recolor: does [
-		text-start: at rt/text offset-to-caret rt ofs: as-pair 0 0 - rt/offset/y
+	renumber: has [n][
+		append clear lns/text #"1"
+		n: 1 found: rt/text
+		while [found: find/tail found lf] [append lns/text rejoin [lf n: n + 1]]
+		lns/data/1/2: 1 + length? lns/text
+	]
+	recolor: has [ofs][
+		text-start: at rt/text offset-to-caret rt ofs: as-pair 60 0 - rt/offset/y
 		text-end: at rt/text offset-to-caret rt ofs + bs/size
 		if pos [move/part pos save-bd length? pos]
 		clear at rt/data 7
@@ -436,7 +474,10 @@ ctx: context [
 	change-font: func [what /type /local n][
 		n: pick [6 5] type
 		rt/data/:n: what
-		show rt 
+		lns/data/(n - 3): what
+		lns/size/y: rt/size/y: second size-text rt
+		recolor
+		show [lns rt] 
 		adjust-scroller 
 		set-caret curpos 
 	]	
@@ -444,6 +485,8 @@ ctx: context [
 		len: any [len 1]
 		i1: either found: find/reverse/tail pos1 skp2 [index? found][1]
 		pos3: rt/data
+		rt/data/4/2: 1 + length? rt/text
+		lns/data/1/2: 1 + length? lns/text
 		forall pos3 [
 			if pair? pos3/1 [
 				case [
@@ -457,7 +500,7 @@ ctx: context [
 		show rt
 		unless only [recolor]
 	]
-	set-caret: func [e [event! none! integer!] /dont-move][
+	set-caret: func [e [event! none! integer!] /dont-move /local found posM pos1M pos2M tmppos line-start][
 		case [
 			event? e [ 
 				switch e/type [
@@ -522,6 +565,7 @@ ctx: context [
 									write-clipboard copy/part pos1: at rt/text rt/data/1/x len: rt/data/1/y 
 									remove/part pos1 len 
 									recolor
+									renumber
 									set-caret rt/data/1/x 
 								]
 							]
@@ -535,7 +579,7 @@ ctx: context [
 								recolor
 								set-caret curpos + length? txt
 							]
-							delete #"^H" [ ;Delete and backspace
+							delete #"^H" [;Delete and backspace
 								case [
 									rt/data/1/y > 0 [
 										remove/part pos1: at rt/text curpos: rt/data/1/x rt/data/1/y
@@ -562,15 +606,40 @@ ctx: context [
 										adjust-markers/length pos1 -1
 									]
 								]
+								renumber
 							]
 							#"^[" [clear pos clear last-find] ;Escape
+							#"^M" [
+								pos1M: any [find/reverse/tail at rt/text curpos newline head rt/text]
+								pos2M: skip-some pos1M sp
+								;probe at rt/text curpos - 1
+								tmppos: index? pos1: insert at rt/text curpos reduce [newline line-start: copy/part pos1M pos2M]
+								either brc: find/match back at rt/text curpos opn [
+									brc: back brc
+									skip-some brc sp
+									tmppos: index? pos1: insert pos1 tab
+									either pos1/1 = opp/(brc/1) [
+										posM: insert at rt/text tmppos reduce [newline line-start]
+										len: 2 * (length? line-start) + 4
+									][
+										posM: pos1
+										len: 2 + length? line-start
+									]
+								][
+									posM: pos1 
+									len: 1 + length? line-start
+								]
+								curpos: tmppos 
+								show rt
+								adjust-markers/length posM len
+								renumber 
+							]
 						][
 							curpos: index? pos1: insert at rt/text curpos e/key
 							if find opn-brc e/key [insert pos1 opp/(e/key)]
-							adjust-markers pos1
-							;if e/key = #"^M" [adjust-scroller show rt]
+							adjust-markers/length pos1 len
 						]
-						adjust-scroller show rt
+						adjust-scroller ;show rt
 					]
 				]
 				either any [find [#"^A" #"^C"] e/key all [e/shift? any [e/type = 'down find [left right down up end home] e/key]]] [
@@ -585,8 +654,8 @@ ctx: context [
 		caret/3: as-pair caret/2/1 caret/2/2 + rich-text/line-height? rt 1
 		unless dont-move [reposition count-lines at rt/text curpos]
 	]
-	offset: func [e][either e/face = rt [e/offset][e/offset - rt/offset]]
-	tip-text: rtd-layout [""] tip-text/size: 580x30
+	offset: func [e][either e/face = rt [e/offset][e/offset - rt/offset + 60x0]]
+	tip-text: rtd-layout reduce [white ""] tip-text/size: 580x30
 
 	system/view/auto-sync?: off
 	view/flags/no-wait lay: layout/options/tight [
@@ -647,16 +716,20 @@ ctx: context [
 		bs: base white with [
 			size: system/view/screens/1/size - 12x150 ;initial-size ;- 15x0
 			pane: layout/only [
-				origin 0x0 
-				rt: rich-text "Red []^/" with [
-					size: system/view/screens/1/size - 30x0 ;initial-size - 15x0
-					data: compose [1x0 backdrop silver 1x0 (to-integer pick font-size/data font-size/selected) (system/view/fonts/system)]
+				origin 0x0 across
+				lns: rich-text linen right "" white with [
+					size: as-pair 50 system/view/screens/1/size/y
+					data: reduce [1x0 to-integer pick font-size/data font-size/selected system/view/fonts/system silver]
+				]
+				rt: rich-text beige "Red []^/" with [
+					size: system/view/screens/1/size - 90x0 ;initial-size - 15x0
+					data: reduce [1x0 'backdrop silver 1x0 to-integer pick font-size/data font-size/selected system/view/fonts/system]
 					menu: find-menu
 				]
 				cursor I-beam 
 				on-time [face/draw/2: pick [glass black] face/draw/2 = 'black show face]
 				on-menu [find-word event]
-				at 0x0 layer: box with [
+				at 60x0 layer: box with [
 					size: system/view/screens/1/size - 30x160 ;initial-size - 15x0
 					menu: find-menu
 				] 
@@ -680,7 +753,7 @@ ctx: context [
 							]
 						]
 					][
-						str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset - rt/offset skp
+						str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset - rt/offset + 60x0 skp
 						case [
 							br: any [find/match br brc all [str find/match back str brc]][
 								in-brc: yes
@@ -696,8 +769,8 @@ ctx: context [
 									]
 								]
 								wrd: load copy/part 
-									at rt/text offset-to-caret rt in-box/1 + 0x3 - rt/offset 
-									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset
+									at rt/text offset-to-caret rt in-box/1 + 0x3 - rt/offset + 60x0
+									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset + 60x0
 								either event/ctrl? [
 									tip-text/text: rejoin [type? fn: get :wrd "!^/"]
 									append tip-text/text either any-function? :fn [mold spec-of :fn][help-string :fn]
@@ -712,6 +785,7 @@ ctx: context [
 								][
 									tip-text/text: help-string :wrd
 								]
+								tip-text/data/1/2: 1 + length? tip-text/text
 								tip/size/y: 20 + tip-text/size/y: second size-text tip-text
 								tip/draw/5/y: tip/size/y - 1
 								either (event/offset/x - face/offset/x) > tip/size/x [
@@ -739,20 +813,20 @@ ctx: context [
 		]
 		on-scroll [
 			unless event/key = 'end [
-				scroll scr/position: min max 1 switch event/key [
+				scroll scr/position: min scr/max-size max 1 switch event/key [
 					track [event/picked]
 					up [scr/position - 1]
 					page-up [scr/position - scr/page-size]
 					down [scr/position + 1]
 					page-down [scr/position + scr/page-size]
-				] scr/max-size
+				] 
 				clear at layer/draw 5
 				collect/into [parse rt/data box-rule] layer/draw
 				pos: tail rt/data
 				show bs
 			]
 		]
-		on-wheel [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size]
+		on-wheel [if bs/size/y < second size-text rt [scroll scr/position: min max 1 scr/position - (3 * event/picked) scr/max-size - scr/page-size]]
 		on-key [
 			switch/default event/key [
 				left up [case [
@@ -799,7 +873,7 @@ ctx: context [
 				repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
 				if (count-lines _str2) > (scr/position + scr/page-size) [
 					scr/position: count-lines _str1
-					rt/offset: as-pair 0 negate scr/position - 1 * rich-text/line-height? rt 1 
+					lns/offset/y: rt/offset/y: to-integer negate scr/position - 1 * rich-text/line-height? rt 1 
 				]
 				show bs
 			][set-caret event]
@@ -808,12 +882,12 @@ ctx: context [
 			draw: compose [
 				fill-pen 0.0.128 
 				box 0x0 (size - 1) 
-				fill-pen white
+				;fill-pen 254.254.254.1
 				text 10x10 (tip-text)
 			] 
 		]
 
-		do [rt/parent: bs layer/parent: bs]
+		do [lns/parent: bs rt/parent: bs layer/parent: bs]
 	] [
 		offset: -7x0 ;300x50
 		menu: ["File" ["New" new "Open..." open "Save" save "Save as..." save-as]]; "Save copy" save-copy]]
@@ -825,9 +899,13 @@ ctx: context [
 			on-menu: func [face [object!] event [event!]][
 				switch event/picked [
 					new [open-file none face/extra: none]
-					open [open-file second face/extra: split-path request-file/title/filter "Open file" ["Red" "*.red"]]
+					open [open-file second face/extra: split-path request-file/title/filter "Open file" ["Red" "*.red" "All" "*"]]
 					save [write face/extra/2 rt/text]
-					save-as [face/extra: split-path file: request-file/save/title "Save file" write file rt/text]
+					save-as [
+						face/text: mold second face/extra: split-path file: request-file/save/title "Save file" 
+						show face 
+						write file rt/text
+					]
 					save-copy []
 				]
 			]
@@ -856,8 +934,9 @@ ctx: context [
 				]
 				options/parent/size/x: face/size/x
 				bs/offset/y: options/offset/y + options/size/y + 10
-				bs/size: face/size - 12x60
-				rt/size/x: layer/size/x: bs/size/x - 18
+				bs/size/x: face/size/x - 12
+				bs/size/y: face/size/y - bs/offset/y - 10;12x60
+				rt/size/x: layer/size/x: bs/size/x - 78;18
 				show bs
 				adjust-scroller
 				reposition curpos
@@ -867,5 +946,9 @@ ctx: context [
 		]
 	] 'resize
 	renew-view
+	
+;	new-words: at words-of system/words index? 'starting-pos
+;	collect/into [forall new-words [if value? :new-words/1 [keep new-words/1]]] new-words-in-default-context
+	
 	do-events
 ]
