@@ -510,7 +510,7 @@ syntax-ctx: context [
 		show rt
 		unless only [recolor]
 	]
-	set-caret: func [e [event! none! integer!] /dont-move /local found posM pos1M pos2M tmppos line-start brc_][
+	set-caret: func [e [event! none! integer!] /dont-move /only /local found posM pos1M pos2M tmppos line-start brc_][
 		case [
 			event? e [ 
 				switch e/type [
@@ -529,14 +529,22 @@ syntax-ctx: context [
 								curpos: either e/ctrl? [
 									index? find at rt/text curpos + 1 skp2
 								][
-									min 1 + length? rt/text curpos + 1
+									either all [0 < rt/data/1/2 not e/shift?] [
+										rt/data/1/1 + rt/data/1/2
+									][
+										min 1 + length? rt/text curpos + 1																				
+									]
 								]
 							]
 							left [
 								curpos: either e/ctrl? [
 									either found: find/reverse/tail at rt/text curpos - 1 skp2 [index? found][1]
 								][
-									max 1 curpos - 1
+									either all [0 < rt/data/1/2 not e/shift?] [
+										rt/data/1/1
+									][
+										max 1 curpos - 1
+									]
 								]
 							]
 							down [
@@ -659,7 +667,7 @@ syntax-ctx: context [
 					anchor: curpos rt/data/1/2: 0
 				]
 			]
-			integer? e [anchor: curpos: e rt/data/1/2: 0]
+			integer? e [curpos: e rt/data/1/2: 0 unless only [anchor: curpos]]
 		]
 		caret/2: caret-to-offset rt curpos
 		caret/3: as-pair caret/2/1 caret/2/2 + rich-text/line-height? rt 1
@@ -759,6 +767,15 @@ syntax-ctx: context [
 				cursor I-beam 
 				on-time [face/draw/2: pick [glass black] face/draw/2 = 'black show face]
 				on-menu [find-word event]
+				all-over on-over [ ; NB! Works on first page only
+					if event/down? [
+						curpos: i2: offset-to-caret rt event/offset
+						set-caret/dont-move/only curpos
+						rt/data/1: as-pair min anchor curpos absolute anchor - curpos
+						show rt
+					]
+				]
+
 				at 60x0 layer: box with [
 					size: system/view/screens/1/size - 30x160 ;initial-size - 15x0
 					menu: find-menu
@@ -834,6 +851,15 @@ syntax-ctx: context [
 						]
 					]
 				]
+				;at 60x0 layer2: box 0.0.0.254 with [size: system/view/screens/1/size - 30x160]
+				;all-over on-over [
+				;	if event/down? [
+				;		curpos: i2: offset-to-caret rt offset event
+				;		set-caret/dont-move/only curpos
+				;		rt/data/1: as-pair min anchor curpos absolute anchor - curpos
+				;		show rt
+				;	]
+				;]
 			]
 			flags: 'scrollable
 		]
@@ -905,14 +931,21 @@ syntax-ctx: context [
 					_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt offset event skp
 					_i2: index? _str2: arg-scope _str1 none
 					repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
-					if (count-lines _str2) > (scr/position + scr/page-size) [
-						scr/position: count-lines _str1
-						lns/offset/y: rt/offset/y: to-integer negate scr/position - 1 * rich-text/line-height? rt 1 
+					if (count-lines _str2) > (scr/position + scr/page-size - 1) [
+						reposition/start/force count-lines _str1
 					]
 					show bs
 				]
 			][set-caret event]
 			;'stop
+		]
+		on-dbl-click [
+			i1: index? str1: find/reverse/tail at rt/text offset-to-caret rt offset event skp2
+			i2: index? str2: find str1 skp2
+			set-caret/dont-move curpos: i2
+			anchor: i1
+			rt/data/1: as-pair min anchor curpos absolute anchor - curpos
+			show rt
 		]
 		at 0x0 refine: panel hidden [
 			r-expr: area wrap return
