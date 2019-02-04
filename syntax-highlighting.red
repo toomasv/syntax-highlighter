@@ -2,17 +2,24 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-02-02
+	Last: 2019-02-04
 	Purpose: {Study of syntax highlighting}
 ]
-;starting-pos: length? words-of system/words
-;if all [value? 'ctx object? ctx value? 'ctx/in-ctx][
-;	ctx/new-words-in-default-context: clear []
-;	ctx/overloaded-predefined-words: clear []
-;	ctx/overloaded-undefined-words: clear []
-;]
+starting-pos: length? words-of system/words
+if all [value? 'syntax-ctx object? syntax-ctx value? 'syntax-ctx/in-ctx][
+	syntax-ctx/new-words-in-default-context: clear []
+	syntax-ctx/overloaded-predefined-words: clear []
+	;syntax-ctx/overloaded-undefined-words: clear []
+]
 #include %info.red
-ctx: context [
+syntax-ctx: context [
+	sys-words: clear []
+	collect/into [
+		foreach word words-of system/words [
+			if not unset? get/any word [keep word]
+		]
+	] sys-words
+	word-idx: 0
 	in-ctx: self
 	sp: charset " ^-"
 	ws: charset " ^/^-"
@@ -32,10 +39,12 @@ ctx: context [
 	rt: layer: bs: br: scr: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: len: line-num: needle: none
 	_i1: _i2: _str1: _str2: el: caret: found: found-del: dont-move: ctrl?: deleted: none
 	text-start: text-end: address: fnt: opts: edit: step: btns: tip: tips: expr: none
-	;new-words: none 
-	;new-words-in-default-context: clear []
-	;overloaded-predefined-words: clear []
+	
+	new-words: none 
+	new-words-in-default-context: clear []
+	overloaded-predefined-words: clear []
 	;overloaded-undefined-words: clear []
+	
 	save-bd: clear []
 	curpos: anchor: 1
 	crt-start: crt-end: 1 
@@ -304,17 +313,18 @@ ctx: context [
 					]
 				] 
 				set-word? el 	[
-					;either (index? el) < index? 'starting-pos [;probe el
-					;	either unset? :system/words/(to-word :el) [
-					;		append overloaded-predefined-words to-word :el
-					;		highlight s s2 red
-					;	][
-					;		append overloaded-undefined-words to-word :el
-					;		highlight s s2 navy
-					;	]
-					;][
+					either all [
+						(index? to-word :el) < index? 'starting-pos ;probe el
+						find sys-words to-word :el
+					][
+						append overloaded-predefined-words to-word :el
+						highlight s s2 red
+					][
+						if unset? to-word :el [
+							append new-words-in-default-context to-word :el
+						]
 						highlight s s2 navy
-					;]
+					]
 				]
 				any-word? el	[highlight s s2 navy]
 				any-path? el	[highlight s s2 water]
@@ -500,7 +510,7 @@ ctx: context [
 		show rt
 		unless only [recolor]
 	]
-	set-caret: func [e [event! none! integer!] /dont-move /local found posM pos1M pos2M tmppos line-start][
+	set-caret: func [e [event! none! integer!] /dont-move /local found posM pos1M pos2M tmppos line-start brc_][
 		case [
 			event? e [ 
 				switch e/type [
@@ -614,11 +624,11 @@ ctx: context [
 								pos2M: skip-some pos1M sp
 								;probe at rt/text curpos - 1
 								tmppos: index? pos1: insert at rt/text curpos reduce [newline line-start: copy/part pos1M pos2M]
-								either brc: find/match back at rt/text curpos opn [
-									brc: back brc
-									skip-some brc sp
+								either brc_: find/match back at rt/text curpos opn [
+									brc_: back brc_
+									skip-some brc_ sp
 									tmppos: index? pos1: insert pos1 tab
-									either pos1/1 = opp/(brc/1) [
+									either pos1/1 = opp/(brc_/1) [
 										posM: insert at rt/text tmppos reduce [newline line-start]
 										len: 2 * (length? line-start) + 4
 									][
@@ -631,6 +641,7 @@ ctx: context [
 								]
 								curpos: tmppos 
 								show rt
+								replace/all rt/text crlf lf
 								adjust-markers/length posM len
 								renumber 
 							]
@@ -656,6 +667,25 @@ ctx: context [
 	]
 	offset: func [e][either e/face = rt [e/offset][e/offset - rt/offset + 60x0]]
 	tip-text: rtd-layout reduce [white ""] tip-text/size: 580x30
+	show-refine: has [sz1 sz2 diff] [
+		ctrl?: no
+		refine/offset: as-pair lay/size/x / 3 * 2 + 5 bs/offset/y
+		refine/size: as-pair lay/size/x / 3 - 15 bs/size/y
+		bs/size/x: refine/offset/x - 5
+		rt/size/x: layer/size/x: bs/size/x - 78;18
+		r-expr/size/x: r-def/size/x: r-val/size/x: refine/size/x - 20
+		step-expr: back find pos [backdrop 164.200.255]
+		r-expr/extra: step-expr/1
+		r-expr/text: copy/part at rt/text step-expr/1/1 step-expr/1/2
+		sz1: r-expr/size/y
+		r-expr/size/y: min 200 max 50 second size-text r-expr
+		show r-expr
+		sz2: r-expr/size/y
+		diff: sz2 - sz1
+		foreach-face/with refine [face/offset/y: face/offset/y + diff] [face/offset/y > r-expr/offset/y]
+		refine/visible?: yes
+		show [bs refine]
+	]
 
 	system/view/auto-sync?: off
 	view/flags/no-wait lay: layout/options/tight [
@@ -717,11 +747,11 @@ ctx: context [
 			size: system/view/screens/1/size - 12x150 ;initial-size ;- 15x0
 			pane: layout/only [
 				origin 0x0 across
-				lns: rich-text linen right "" white with [
+				lns: rich-text top right "" white with [
 					size: as-pair 50 system/view/screens/1/size/y
 					data: reduce [1x0 to-integer pick font-size/data font-size/selected system/view/fonts/system silver]
 				]
-				rt: rich-text beige "Red []^/" with [
+				rt: rich-text "Red []^/" with [
 					size: system/view/screens/1/size - 90x0 ;initial-size - 15x0
 					data: reduce [1x0 'backdrop silver 1x0 to-integer pick font-size/data font-size/selected system/view/fonts/system]
 					menu: find-menu
@@ -865,18 +895,50 @@ ctx: context [
 			]
 		]
 		on-down [
+			unless lay/selected = bs [set-focus bs show bs]
 			either step/data [
-				clear pos
-				repend steps [_str1 _str2]
-				_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt offset event skp
-				_i2: index? _str2: arg-scope _str1 none
-				repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
-				if (count-lines _str2) > (scr/position + scr/page-size) [
-					scr/position: count-lines _str1
-					lns/offset/y: rt/offset/y: to-integer negate scr/position - 1 * rich-text/line-height? rt 1 
+				either any [ctrl? event/ctrl?] [ ;sky - selected expr in step mode
+					show-refine
+				][
+					clear pos
+					repend steps [_str1 _str2]
+					_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt offset event skp
+					_i2: index? _str2: arg-scope _str1 none
+					repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
+					if (count-lines _str2) > (scr/position + scr/page-size) [
+						scr/position: count-lines _str1
+						lns/offset/y: rt/offset/y: to-integer negate scr/position - 1 * rich-text/line-height? rt 1 
+					]
+					show bs
 				]
-				show bs
 			][set-caret event]
+			;'stop
+		]
+		at 0x0 refine: panel hidden [
+			r-expr: area wrap return
+			button "Do" [
+				r-val/text: either string? res: do r-expr/text [res][mold res]
+				r-val/size/y: second size-text r-val
+				show r-val
+			]
+			button "Save" [
+				if step/data [
+					change/part at rt/text r-expr/extra/1 r-expr/text r-expr/extra/2
+					set-caret curpos
+					_i1: r-expr/extra/1
+					move-backdrop at rt/text _i1
+					recolor
+					renumber
+					set-focus bs show bs 
+					adjust-scroller
+					reposition curpos
+				]
+			] return
+			r-def: area wrap return
+			button "Do" [r-val/text: mold do r-def/text show r-val]
+			;button "Save" [] 
+			return
+			r-val: text wrap
 		]
 		at 0x0 tip: rich-text 600x50 hidden with [
 			draw: compose [
@@ -939,16 +1001,13 @@ ctx: context [
 				rt/size/x: layer/size/x: bs/size/x - 78;18
 				show bs
 				adjust-scroller
-				reposition curpos
+				reposition count-lines at rt/text curpos
 			]
 			on-resizing: func [face event][resize face event]
 			on-resize: func [face event][resize face event]
 		]
 	] 'resize
 	renew-view
-	
-;	new-words: at words-of system/words index? 'starting-pos
-;	collect/into [forall new-words [if value? :new-words/1 [keep new-words/1]]] new-words-in-default-context
 	
 	do-events
 ]
