@@ -1,22 +1,26 @@
 # syntax-highlighter
 Red syntax/expressions highligting
 
-## Current limitations / problems
+## Usage and limitations
 1. Expressions highlighting works for predefined functions only. User-defined functions are TBD
-2. `op!` scope is correctly found when treated as argument. Arguments highlighting for `op!` itself is TBD
+  - If UDF is evaluated in step mode, highlighting will work on these too (They are evaluated in default context, in-object evaluation TBD)
+2. `op!` scope is correctly found when treated as argument. Arguments highlighting for `op!` itself (in "Expr" mode) is TBD
   - Partly done 17.01 (Left nested parens TBD)
 3. If function is in beginning of block or parens, then block scope is shown on hovering, not expression scope. TBD
 4. Highlighting does not adapt to dialects (e.g. parse, VID, RTD). TBD
 5. Its's not editable. TBD
   - First version 24.01
-  - Font-resizing too
+  - Font-resizing and type change too
+  - Selection with keys, double-click, shift-click done
+  - Selection by dragging TBD
 6. Not resizable. TBD
   - First version done 18.01
 7. No error-handling. TBD
 8. No comments :). TBD
 9. No code execution. Also incremental execution TBD. 
   - First draft done 18.01. (In "Step" mode use "Eval" button to evaluate highlighted expression)
-10. Navigation by scroller only. Wheeling and arrow-nav TBD. 
+  - Refining 7.02: Click "Construct". Then in step mode select expression and ctrl-click it to open refining panel... Works only for programs not in anonymous or path-named contexts.
+10. Navigation by scroller from start 
   - Simple wheeling done 18.01
   - Back-stepping added 19.01
   - Step-selection by mouse click 19.01
