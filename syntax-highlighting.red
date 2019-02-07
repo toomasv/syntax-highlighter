@@ -2,16 +2,17 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-02-04
+	Last: 2019-02-07
 	Purpose: {Study of syntax highlighting}
 ]
 starting-pos: length? words-of system/words
-if all [value? 'syntax-ctx object? syntax-ctx value? 'syntax-ctx/in-ctx][
+if all [value? 'syntax-ctx attempt [object? syntax-ctx]][; value? 'syntax-ctx/in-ctx][
 	syntax-ctx/new-words-in-default-context: clear []
 	syntax-ctx/overloaded-predefined-words: clear []
 	;syntax-ctx/overloaded-undefined-words: clear []
 ]
 #include %info.red
+#include %../../red-latest/red-master/environment/console/help.red
 syntax-ctx: context [
 	sys-words: clear []
 	collect/into [
@@ -20,7 +21,7 @@ syntax-ctx: context [
 		]
 	] sys-words
 	word-idx: 0
-	in-ctx: self
+	;in-ctx: self
 	sp: charset " ^-"
 	ws: charset " ^/^-"
 	opn: charset "[("
@@ -36,7 +37,8 @@ syntax-ctx: context [
 	skip-chars: charset "#$&"
 	opn-brc: charset "{[(^"" ;"
 	opp: "[][()({}{^"^""
-	rt: layer: bs: br: scr: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: len: line-num: needle: none
+	rt: layer: bs: refine: lns: r-expr: r-def: r-val: none
+	br: scr: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: len: line-num: needle: none
 	_i1: _i2: _str1: _str2: el: caret: found: found-del: dont-move: ctrl?: deleted: none
 	text-start: text-end: address: fnt: opts: edit: step: btns: tip: tips: expr: none
 	
@@ -56,7 +58,7 @@ syntax-ctx: context [
 	coef: 1
 	initial-size: 820x400
 
-	open-file: func [file][
+	open-file: func [file [file! none!]][
 		either file [
 			rt/text: read file
 			lay/text: mold file
@@ -65,6 +67,25 @@ syntax-ctx: context [
 			lay/text: "New file"
 		]
 		renew-view
+	]
+	save: func [face [object!] /as /copy /local file][
+		case [
+			copy [
+				if attempt [file: request-file/save/title "Save copy as"][
+					write file rt/text
+				]
+			]
+			any [as not face/extra] [
+				if attempt [file: request-file/save/title "Save file as"][
+					face/text: mold second face/extra: split-path file
+					show face 
+					write file rt/text
+				]
+			]
+			true [
+				write face/extra/2 rt/text
+			]
+		]
 	]
 	set-coef: has [sz][
 		sz: (rich-text/line-count? rt) * (rich-text/line-height? rt 1) 
@@ -141,12 +162,12 @@ syntax-ctx: context [
 		set-focus bs
 		show lay
 	]
-	construct-step: does [
-		if find [object context] el: load/next _str1 '_str2 [
-			tmp-obj: construct load/next _tmp '_str2
-			loop 2 [into-step]
-		]
-	]
+	;construct-step: does [
+	;	if find [object context] el: load/next _str1 '_str2 [
+	;		tmp-obj: construct load/next _tmp '_str2
+	;		loop 2 [into-step]
+	;	]
+	;]
 	move-backdrop: func [str [string!]][
 		_i2: index? _str2: arg-scope str none
 		clear pos
@@ -279,9 +300,9 @@ syntax-ctx: context [
 			s1
 		]
 	]
-	filter: func [series [block!] _end [string!]][
-		collect [foreach file series [if find/match skip tail file -4 _end [keep file]]]
-	]
+	;filter: func [series [block!] _end [string!]][
+	;	collect [foreach file series [if find/match skip tail file -4 _end [keep file]]]
+	;]
 	rule: [any [s: [if ((index? text-end) <= index? s) (return true) |]
 		ws
 	|	brc (s2: next s highlight s s2 rebolor)
@@ -481,7 +502,7 @@ syntax-ctx: context [
 		if not empty? save-bd [move/part save-bd pos length? save-bd]
 		system/view/platform/redraw layer ; ??
 	]
-	change-font: func [what /type /local n][
+	change-font: func [what [integer! string!] /type /local n][
 		n: pick [6 5] type
 		rt/data/:n: what
 		lns/data/(n - 3): what
@@ -673,26 +694,87 @@ syntax-ctx: context [
 		caret/3: as-pair caret/2/1 caret/2/2 + rich-text/line-height? rt 1
 		unless dont-move [reposition count-lines at rt/text curpos]
 	]
-	offset: func [e][either e/face = rt [e/offset][e/offset - rt/offset + 60x0]]
+	offset: func [e [event!]][either e/face = rt [e/offset][e/offset - rt/offset + 60x0]]
 	tip-text: rtd-layout reduce [white ""] tip-text/size: 580x30
-	show-refine: has [sz1 sz2 diff] [
+	make-ctx-path: func [face [object!] addr [pair!] /local s s2 e b][
+		face/extra/addr: addr
+		clear at face/extra/path 2
+		append face/extra/path parse at rt/text addr/1 [
+			collect any [s:
+				["make object!" | "object" | "context"] b:
+				any ws b: #"["
+				(load/next b 'e)
+				if (addr/1 < index? e) (
+					s: find/reverse/tail e: find/reverse s ws ws
+				) keep (to-word copy/part s e)
+				(s: back s) :s
+			|	if (head? s) break
+			|	(s: back s) :s
+			]
+		]
+	]
+	save-code-back: func [face [object!]][
+		if step/data [
+			change/part at rt/text face/extra/addr/1 face/text face/extra/addr/2
+			set-caret curpos: _i1: face/extra/addr/1
+			move-backdrop at rt/text _i1
+			recolor
+			renumber
+			set-focus bs show bs 
+			face/extra/addr/2: length? face/text
+			adjust-scroller
+			reposition curpos
+		]
+	]
+	show-refine: has [sz1 sz2 diff s b e _path_] [
 		ctrl?: no
 		refine/offset: as-pair lay/size/x / 3 * 2 + 5 bs/offset/y
 		refine/size: as-pair lay/size/x / 3 - 15 bs/size/y
 		bs/size/x: refine/offset/x - 5
 		rt/size/x: layer/size/x: bs/size/x - 78;18
 		r-expr/size/x: r-def/size/x: r-val/size/x: refine/size/x - 20
-		step-expr: back find pos [backdrop 164.200.255]
-		r-expr/extra: step-expr/1
-		r-expr/text: copy/part at rt/text step-expr/1/1 step-expr/1/2
+		step-expr: first back find pos [backdrop 164.200.255]
+		make-ctx-path r-expr step-expr
+		r-expr/text: copy/part at rt/text step-expr/1 step-expr/2
 		sz1: r-expr/size/y
-		r-expr/size/y: min 200 max 50 second size-text r-expr
+		r-expr/size/y: min 400 max 50 second size-text r-expr
+		r-expr/selected: 1x0 ; ? Doesn't work?
 		show r-expr
 		sz2: r-expr/size/y
 		diff: sz2 - sz1
 		foreach-face/with refine [face/offset/y: face/offset/y + diff] [face/offset/y > r-expr/offset/y]
 		refine/visible?: yes
 		show [bs refine]
+	]
+	do-refine-code: func [face [object!] /local res code ctx][
+		code: bind load/all face/text get to-path face/extra/path
+		r-val/text: either string? res: do code [res][mold :res]
+		r-val/size/y: second size-text r-val
+		show r-val
+	]
+	__explore-ctx__: none
+	construct-code: has [loaded s e rule __current-ctx__ stack][
+		probe __explore-ctx__: construct skip loaded: load rt/text 2
+		__current-ctx__: __explore-ctx__
+		stack: clear []
+		parse loaded rule: [
+			some [
+				'Red block!
+			|	set-word! s: [
+					change ['object | 'context | 'make 'object!] construct
+					(
+						;if set-path? s/-1 [s/-1: load replace/all form s/-1 #"/" #"_"] ; what if there is context with path, eg system/view/VID | or anonymous?
+						__current-ctx__/(to-word s/-1): do/next s 'e
+						repend stack [__current-ctx__ e]
+						__current-ctx__: __current-ctx__/(to-word s/-1)
+					)
+					s: (bind s/1 __current-ctx__) into rule 
+					(set [__current-ctx__ e] take/last/part stack 2) :e
+				| 	if (__current-ctx__/(to-word s/-1): attempt/safer [do/next s 'e]) :e ; attempt - to avoid routines
+				]
+			| 	skip
+			]
+		]
 	]
 
 	system/view/auto-sync?: off
@@ -735,7 +817,8 @@ syntax-ctx: context [
 					button "Into" [either all [step/data empty? last-find] [into-step][find-again false]]
 					button "Next" [either all [step/data empty? last-find] [next-step][find-again false]]
 					button "Eval" [if all [step/data empty? last-find] [do-step]]
-					button "Construct" [if all [step/data empty? last-find] [construct-step]]
+					;button "Construct" [if all [step/data empty? last-find] [construct-step]]
+					button "Construct" [construct-code]
 					button "Recolor" [recolor set-focus bs attempt [show lay]]
 					font-size: drop-list 40 data ["9" "10" "11" "12" "13" "14"] select 4 on-change [
 						change-font to-integer pick face/data face/selected
@@ -767,14 +850,14 @@ syntax-ctx: context [
 				cursor I-beam 
 				on-time [face/draw/2: pick [glass black] face/draw/2 = 'black show face]
 				on-menu [find-word event]
-				all-over on-over [ ; NB! Works on first page only
-					if event/down? [
-						curpos: i2: offset-to-caret rt event/offset
-						set-caret/dont-move/only curpos
-						rt/data/1: as-pair min anchor curpos absolute anchor - curpos
-						show rt
-					]
-				]
+				;all-over on-over [ ; NB! Works on first page only
+				;	if event/down? [
+				;		curpos: i2: offset-to-caret rt event/offset
+				;		set-caret/dont-move/only curpos
+				;		rt/data/1: as-pair min anchor curpos absolute anchor - curpos
+				;		show rt
+				;	]
+				;]
 
 				at 60x0 layer: box with [
 					size: system/view/screens/1/size - 30x160 ;initial-size - 15x0
@@ -820,9 +903,9 @@ syntax-ctx: context [
 									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset + 60x0
 								either event/ctrl? [
 									tip-text/text: rejoin [type? fn: get :wrd "!^/"]
-									append tip-text/text either any-function? :fn [mold spec-of :fn][help-string :fn]
+									append tip-text/text either any-function? :fn [mold spec-of :fn][help-string :wrd] ; or :fn for non-func? (with scrollers)
 									case [
-										any [function? :fn op? fn] [append tip-text/text mold body-of :fn]
+										any [function? :fn op? :fn] [append tip-text/text mold body-of :fn]
 										bitset? :fn [
 											append tip-text/text "Chars: "
 											append tip-text/text mold rejoin collect [repeat i length? :fn [if pick :fn i [keep to-char i]]]
@@ -948,30 +1031,34 @@ syntax-ctx: context [
 			show rt
 		]
 		at 0x0 refine: panel hidden [
-			r-expr: area wrap return
-			button "Do" [
-				r-val/text: either string? res: do r-expr/text [res][mold res]
-				r-val/size/y: second size-text r-val
-				show r-val
-			]
-			button "Save" [
-				if step/data [
-					change/part at rt/text r-expr/extra/1 r-expr/text r-expr/extra/2
-					set-caret curpos
-					_i1: r-expr/extra/1
-					move-backdrop at rt/text _i1
-					recolor
-					renumber
-					set-focus bs show bs 
-					adjust-scroller
-					reposition curpos
+			r-expr: area wrap extra [addr 0x0 path [__explore-ctx__]]
+			with [menu: ["Show def" show-def]]
+			on-menu [
+				switch event/picked [
+					show-def [
+						str: find rt/text append copy/part at r-expr/text 
+							r-expr/selected/1 - (count-lines at r-expr/text r-expr/selected/1) + 1
+							r-expr/selected/2 - r-expr/selected/1 + 1 #":"
+						sz1: r-def/size/y
+						r-def/text: copy/part str arg-scope str none
+						make-ctx-path r-def as-pair i1: index? str length? r-def/text
+						r-def/size/y: second min 400 max 50 size-text r-def
+						show r-def
+						sz2: r-def/size/y
+						diff: sz2 - sz1
+						foreach-face/with refine [face/offset/y: face/offset/y + diff] [face/offset/y > r-def/offset/y]
+						show refine
+					]
 				]
-			] return
-			r-def: area wrap return
-			button "Do" [r-val/text: mold do r-def/text show r-val]
-			;button "Save" [] 
+			]
 			return
-			r-val: text wrap
+			button "Do" [do-refine-code r-expr]
+			button "Save" [save-code-back r-expr] return
+			r-def: area wrap extra [addr 0x0 path [__explore-ctx__]] return
+			button "Do" [do-refine-code r-def]
+			button "Save" [save-code-back r-def] 
+			return
+			r-val: text wrap white
 		]
 		at 0x0 tip: rich-text 600x50 hidden with [
 			draw: compose [
@@ -985,7 +1072,7 @@ syntax-ctx: context [
 		do [lns/parent: bs rt/parent: bs layer/parent: bs]
 	] [
 		offset: -7x0 ;300x50
-		menu: ["File" ["New" new "Open..." open "Save" save "Save as..." save-as]]; "Save copy" save-copy]]
+		menu: ["File" ["New" new "Open..." open "Save" save "Save as..." save-as "Save copy..." save-copy]]
 		actors: object [
 			max-x: max-y: 0
 			cur-y: 10
@@ -995,13 +1082,9 @@ syntax-ctx: context [
 				switch event/picked [
 					new [open-file none face/extra: none]
 					open [open-file second face/extra: split-path request-file/title/filter "Open file" ["Red" "*.red" "All" "*"]]
-					save [write face/extra/2 rt/text]
-					save-as [
-						face/text: mold second face/extra: split-path file: request-file/save/title "Save file" 
-						show face 
-						write file rt/text
-					]
-					save-copy []
+					save [save face]
+					save-as [save/as face]
+					save-copy [save/copy face]
 				]
 			]
 			resize: func [face [object!] event [event!] /local _last diff][
@@ -1041,6 +1124,6 @@ syntax-ctx: context [
 		]
 	] 'resize
 	renew-view
-	
+	ending-pos: length? words-of system/words
 	do-events
 ]
