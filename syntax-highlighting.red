@@ -6,7 +6,7 @@ Red [
 	Purpose: {Study of syntax highlighting}
 ]
 starting-pos: length? words-of system/words
-if all [value? 'syntax-ctx attempt [object? syntax-ctx]][; value? 'syntax-ctx/in-ctx][
+if all [value? 'syntax-ctx attempt [object? syntax-ctx]][
 	syntax-ctx/new-words-in-default-context: clear []
 	syntax-ctx/overloaded-predefined-words: clear []
 	;syntax-ctx/overloaded-undefined-words: clear []
@@ -21,7 +21,6 @@ syntax-ctx: context [
 		]
 	] sys-words
 	word-idx: 0
-	;in-ctx: self
 	sp: charset " ^-"
 	ws: charset " ^/^-"
 	opn: charset "[("
@@ -56,7 +55,6 @@ syntax-ctx: context [
 	steps: clear []
 	last-find: []; act str1 i1 len
 	coef: 1
-	initial-size: 820x400
 
 	open-file: func [file [file! none!]][
 		either file [
@@ -312,9 +310,6 @@ syntax-ctx: context [
 			s1
 		]
 	]
-	;filter: func [series [block!] _end [string!]][
-	;	collect [foreach file series [if find/match skip tail file -4 _end [keep file]]]
-	;]
 	rule: [any [s: [if ((index? text-end) <= index? s) (return true) |]
 		ws
 	|	brc (s2: next s highlight s s2 rebolor)
@@ -347,7 +342,7 @@ syntax-ctx: context [
 				] 
 				set-word? el 	[
 					either all [
-						(index? to-word :el) < index? 'starting-pos ;probe el
+						(index? to-word :el) < index? 'starting-pos 
 						find sys-words to-word :el
 					][
 						append overloaded-predefined-words to-word :el
@@ -589,12 +584,12 @@ syntax-ctx: context [
 							up [curpos: max 1 offset-to-caret rt (caret-to-offset rt curpos) - 0x3]
 							page-down [
 								curpos: min 1 + length? rt/text offset-to-caret rt (
-									(caret-to-offset rt curpos) + as-pair 0 scr/page-size + 1 * rich-text/line-height? rt 1 ;bs/size/y
+									(caret-to-offset rt curpos) + as-pair 0 scr/page-size + 1 * rich-text/line-height? rt 1 
 								)
 							]
 							page-up [
 								curpos: max 1 offset-to-caret rt (
-									(caret-to-offset rt curpos) - as-pair 0 scr/page-size + 1 * rich-text/line-height? rt 1 ;bs/size/y
+									(caret-to-offset rt curpos) - as-pair 0 scr/page-size + 1 * rich-text/line-height? rt 1 
 								)
 							]
 							end [
@@ -665,7 +660,6 @@ syntax-ctx: context [
 							#"^M" [
 								pos1M: any [find/reverse/tail at rt/text curpos newline head rt/text]
 								pos2M: skip-some pos1M sp
-								;probe at rt/text curpos - 1
 								tmppos: index? pos1: insert at rt/text curpos reduce [newline line-start: copy/part pos1M pos2M]
 								either brc_: find/match back at rt/text curpos opn [
 									brc_: back brc_
@@ -693,7 +687,7 @@ syntax-ctx: context [
 							if find opn-brc e/key [insert pos1 opp/(e/key)]
 							adjust-markers/length pos1 len
 						]
-						adjust-scroller ;show rt
+						adjust-scroller 
 					]
 				]
 				either any [find [#"^A" #"^C"] e/key all [e/shift? any [e/type = 'down find [left right down up end home] e/key]]] [
@@ -708,7 +702,7 @@ syntax-ctx: context [
 		caret/3: as-pair caret/2/1 caret/2/2 + rich-text/line-height? rt 1
 		unless dont-move [reposition count-lines at rt/text curpos]
 	]
-	offset: func [e [event!]][either e/face = rt [e/offset][e/offset - rt/offset + layer/offset]];60x0]]
+	offset: func [e [event!]][either e/face = rt [e/offset][e/offset - rt/offset + layer/offset]]
 	tip-text: rtd-layout reduce [white ""] tip-text/size: 580x30
 	make-ctx-path: func [face [object!] addr [pair!] /local s s2 e b][
 		face/extra/addr: addr
@@ -745,7 +739,7 @@ syntax-ctx: context [
 		refine/offset: as-pair lay/size/x / 3 * 2 + 5 bs/offset/y
 		refine/size: as-pair lay/size/x / 3 - 15 bs/size/y
 		bs/size/x: refine/offset/x - 5
-		rt/size/x: layer/size/x: bs/size/x - 78;18
+		rt/size/x: layer/size/x: bs/size/x - 78
 		r-expr/size/x: r-def/size/x: r-val/size/x: refine/size/x - 20
 		step-expr: first back find pos [backdrop 164.200.255]
 		make-ctx-path r-expr step-expr
@@ -849,7 +843,7 @@ syntax-ctx: context [
 		space 0x0
 		return pad 10x10 
 		bs: base white with [
-			size: system/view/screens/1/size - 12x150 ;initial-size ;- 15x0
+			size: system/view/screens/1/size - 12x150 
 			pane: layout/only [
 				origin 0x0 across
 				lns: rich-text top right "" white with [
@@ -857,7 +851,7 @@ syntax-ctx: context [
 					data: reduce [1x0 to-integer pick font-size/data font-size/selected system/view/fonts/system silver]
 				]
 				rt: rich-text "Red []^/" with [
-					size: system/view/screens/1/size - 90x0 ;initial-size - 15x0
+					size: system/view/screens/1/size - 90x0 
 					data: reduce [1x0 'backdrop silver 1x0 to-integer pick font-size/data font-size/selected system/view/fonts/system]
 					menu: find-menu
 				]
@@ -874,7 +868,7 @@ syntax-ctx: context [
 				;]
 
 				at 60x0 layer: box with [
-					size: system/view/screens/1/size - 30x160 ;initial-size - 15x0
+					size: system/view/screens/1/size - 30x160
 					menu: find-menu
 				] 
 				draw [pen off fill-pen 0.0.0.254]
@@ -897,7 +891,7 @@ syntax-ctx: context [
 							]
 						]
 					][
-						str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset - rt/offset + layer/offset skp;60x0 skp
+						str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset - rt/offset + layer/offset skp
 						case [
 							any [find brc br/1 all [any [find ws br/1 not find [word! path!] type? load/next br '_] find brc br/-1 br: back br]][
 								in-brc: yes
@@ -913,8 +907,8 @@ syntax-ctx: context [
 									]
 								]
 								wrd: load copy/part 
-									at rt/text offset-to-caret rt in-box/1 + 0x3 - rt/offset + layer/offset;60x0
-									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset + layer/offset;60x0
+									at rt/text offset-to-caret rt in-box/1 + 0x3 - rt/offset + layer/offset
+									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset + layer/offset
 								either event/ctrl? [
 									tip-text/text: rejoin [type? fn: get :wrd "!^/"]
 									append tip-text/text either any-function? :fn [mold spec-of :fn][help-string :wrd] ; or :fn for non-func? (with scrollers)
@@ -932,17 +926,29 @@ syntax-ctx: context [
 								tip-text/data/1/2: 1 + length? tip-text/text
 								tip/size/y: 20 + tip-text/size/y: second size-text tip-text
 								tip/draw/5/y: tip/size/y - 1
-								either (event/offset/x - face/offset/x) > tip/size/x [
-									tip/offset: min 
-										max 0x40 event/offset + face/offset + as-pair 0 - tip/size/x - 30 0 - (tip/size/y / 2)
-										bs/size - tip/size
-								][
-									tip/offset: min 
-										max 0x40 event/offset + face/offset + as-pair 30 0 - (tip/size/y / 2)
-										bs/size - tip/size
+								case [
+									(event/offset/y - face/offset/y) > (tip/size/y + 20) [
+										tip/offset: min bs/size - tip/size
+											max 0x40 event/offset + face/offset - as-pair 30 tip/size/y
+									]
+									(event/offset/x - face/offset/x) > tip/size/x [
+										tip/offset: min 
+											max 0x40 event/offset + face/offset + as-pair 0 - tip/size/x - 30 0 - (tip/size/y / 2)
+											bs/size - tip/size
+									]
+									(face/size/y - event/offset/y) > (tip/size/y + 40) [
+										tip/offset: min bs/size - tip/size
+											max 0x40 event/offset + face/offset + -30x80
+									]
+									true [
+										tip/offset: min 
+											max 0x40 event/offset + face/offset + as-pair 30 0 - (tip/size/y / 2)
+											bs/size - tip/size
+									]
 								]
 								tip/visible?: yes
 								show tip
+								'stop
 							]
 							any [expr/data all [edit/data ctrl?]] [if all [str not empty? str] [scope str]]
 						]
@@ -1020,14 +1026,14 @@ syntax-ctx: context [
 		on-down [
 			unless lay/selected = bs [set-focus bs show bs]
 			either step/data [
-				either any [ctrl? event/ctrl?] [ ;sky - selected expr in step mode
+				either any [ctrl? event/ctrl?] [
 					show-refine
 				][
 					clear pos
 					repend steps [_str1 _str2]
 					_i1: index? _str1: find/reverse/tail at rt/text offset-to-caret rt offset event skp
 					_i2: index? _str2: arg-scope _str1 none
-					repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky]
+					repend rt/data [as-pair _i1 _i2 - _i1 'backdrop sky] ;sky - selected expr in step mode
 					if (count-lines _str2) > (scr/position + scr/page-size - 1) [
 						reposition/start/force count-lines _str1
 					]
@@ -1085,7 +1091,7 @@ syntax-ctx: context [
 
 		do [lns/parent: bs rt/parent: bs layer/parent: bs]
 	] [
-		offset: -7x0 ;300x50
+		offset: -7x0
 		menu: ["File" ["New" new "Open..." open "Save" save "Save as..." save-as "Save copy..." save-copy]]
 		actors: object [
 			max-x: max-y: 0
@@ -1109,7 +1115,7 @@ syntax-ctx: context [
 					max-y: 0
 					max-x: 0 
 					cur-y: 10
-					options/size/x: face/size/x; - 20
+					options/size/x: face/size/x
 					forall opts [
 						if 1 < length? opts [
 							max-x: max max-x lim x opts/1
@@ -1127,8 +1133,8 @@ syntax-ctx: context [
 				options/parent/size/x: face/size/x
 				bs/offset/y: options/offset/y + options/size/y + 10
 				bs/size/x: face/size/x - 12
-				bs/size/y: face/size/y - bs/offset/y - 10;12x60
-				rt/size/x: layer/size/x: bs/size/x - 78;18
+				bs/size/y: face/size/y - bs/offset/y - 10
+				rt/size/x: layer/size/x: bs/size/x - 78
 				show bs
 				adjust-scroller
 				reposition count-lines at rt/text curpos
