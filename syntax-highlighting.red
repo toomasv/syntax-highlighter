@@ -2,7 +2,7 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-02-07
+	Last: 2019-02-08
 	Purpose: {Study of syntax highlighting}
 ]
 starting-pos: length? words-of system/words
@@ -38,7 +38,7 @@ syntax-ctx: context [
 	opn-brc: charset "{[(^"" ;"
 	opp: "[][()({}{^"^""
 	rt: layer: bs: refine: lns: r-expr: r-def: r-val: none
-	br: scr: s: s1: s2: i: i1: i2: in-brc: pos: str1: str2: blk: res: wheel-pos: len: line-num: needle: none
+	br: scr: s: s1: s2: i: i1: i2: in-brc: pos: bx-pos: str1: str2: blk: res: wheel-pos: len: line-num: needle: none
 	_i1: _i2: _str1: _str2: el: caret: found: found-del: dont-move: ctrl?: deleted: none
 	text-start: text-end: address: fnt: opts: edit: step: btns: tip: tips: expr: none
 	
@@ -121,7 +121,7 @@ syntax-ctx: context [
 	]
 	highlight: function [s1 [string!] s2 [string!] style [tuple! block!]] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
 	skip-some: func [str [string!] chars [bitset!]][while [find/match str chars][str: next str] str]
-	count-lines: function [pos [string!]][i: 1 parse head pos [any [s: if (s = pos) thru end | newline (i: i + 1) | skip]] i]
+	count-lines: function [cnt-pos [string!]][i: 1 parse head cnt-pos [any [s: if (s = cnt-pos) thru end | newline (i: i + 1) | skip]] i]
 	prev-step: does [
 		unless empty? steps [
 			set [_str1 _str2] take/last/part steps 2
@@ -148,11 +148,10 @@ syntax-ctx: context [
 	]
 	into-step: does [
 		repend steps [_str1 _str2]
-		either find/match opn _str1/1 [
-			_i1: index? _str1: next _str1
-			_str1: skip-some _str1 ws
+		_i1: index? _str1: either find/match opn _str1/1 [
+			skip-some next _str1 ws
 		][
-			_i1: index? _str1: find/tail _str1 skp
+			find/tail _str1 skp
 		]
 		move-backdrop _str1
 	]
@@ -189,10 +188,10 @@ syntax-ctx: context [
 		either empty? path [none][path]
 	]
 	br-scope: function [br [string!]][
-		i1: index? br
 		stack: append clear [] br/1
 		mstack: clear []
 		either find opn br/1 [
+			i1: index? br
 			parse next br [some [s:
 					newline (comm: no)
 				|	[
@@ -217,7 +216,20 @@ syntax-ctx: context [
 			color: either empty? stack [gray + 100][i2: index? s 255.220.220]
 			repend rt/data [as-pair i1 i2 - i1 'backdrop color]
 		][
-			
+			i2: 1 + index? br
+			found: br
+			until [any [
+				all [
+					found: find/reverse found select opp stack/1
+					not find/part find/reverse/tail found lf #";" found
+					load/next found 's
+					s = next br
+				]
+				not found
+			]]
+			color: either found [gray + 100][255.220.220]
+			i1: either found [index? found][1]
+			repend rt/data [as-pair i1 i2 - i1 'backdrop color]
 		]
 	]
 	left-scope: func [str [string!] /local i [integer!]][i: 0
@@ -361,16 +373,17 @@ syntax-ctx: context [
 		any [p: 
 			boxes (
 				address: back p 
-				keep reduce ['box (caret-to-offset rt address/1/1) + rt/offset + -60x2
-					(caret-to-offset rt pos: address/1/1 + address/1/2) + 
-					(as-pair 0 rich-text/line-height? rt pos) + rt/offset - 60x2
+				keep reduce [
+					'box (caret-to-offset rt address/1/1) + rt/offset + -60x2
+						 (caret-to-offset rt bx-pos: address/1/1 + address/1/2) + 
+							(as-pair 0 rich-text/line-height? rt bx-pos) + rt/offset - 60x2
 				]
 			)
 		| skip
 		]
 	] :collect
-	scroll: func [pos [integer!]][
-		lns/offset/y: rt/offset/y: to-integer pos - 1 * negate rich-text/line-height? rt 1 
+	scroll: func [sc-pos [integer!]][
+		lns/offset/y: rt/offset/y: to-integer negate (sc-pos - 1) * (rich-text/line-height? rt 1) * coef
 		recolor
 		show bs
 	]
@@ -388,8 +401,9 @@ syntax-ctx: context [
 		][
 			scr/position: max 1 line-num - either start [0][scr/page-size / 3]
 			scr/page: scr/position - 1 / scr/page-size + 1
-			lns/offset/y: rt/offset/y: to-integer negate (scr/position - 1) * (rich-text/line-height? rt 1) * coef
-			recolor
+			scroll scr/position
+			;lns/offset/y: rt/offset/y: to-integer negate (scr/position - 1) * (rich-text/line-height? rt 1) * coef
+			;recolor
 		]
 		set-focus bs
 		show lay
@@ -694,7 +708,7 @@ syntax-ctx: context [
 		caret/3: as-pair caret/2/1 caret/2/2 + rich-text/line-height? rt 1
 		unless dont-move [reposition count-lines at rt/text curpos]
 	]
-	offset: func [e [event!]][either e/face = rt [e/offset][e/offset - rt/offset + 60x0]]
+	offset: func [e [event!]][either e/face = rt [e/offset][e/offset - rt/offset + layer/offset]];60x0]]
 	tip-text: rtd-layout reduce [white ""] tip-text/size: 580x30
 	make-ctx-path: func [face [object!] addr [pair!] /local s s2 e b][
 		face/extra/addr: addr
@@ -883,24 +897,24 @@ syntax-ctx: context [
 							]
 						]
 					][
-						str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset - rt/offset + 60x0 skp
+						str: find/reverse/tail br: at rt/text offset-to-caret rt event/offset - rt/offset + layer/offset skp;60x0 skp
 						case [
-							br: any [find/match br brc all [str find/match back str brc]][
+							any [find brc br/1 all [any [find ws br/1 not find [word! path!] type? load/next br '_] find brc br/-1 br: back br]][
 								in-brc: yes
-								br-scope back br
+								br-scope br
 								show bs
 							]
 							tips/data [
 								parse layer/draw [
 									some [
 										'box bx: pair! 
-										if (within? event/offset bx/1 - 0x1 bx/2 - bx/1 + 0x2) (in-box: bx) 
+										if (within? event/offset bx/1 - 1x1 bx/2 - bx/1 + 2x2) (in-box: bx)
 									| 	skip
 									]
 								]
 								wrd: load copy/part 
-									at rt/text offset-to-caret rt in-box/1 + 0x3 - rt/offset + 60x0
-									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset + 60x0
+									at rt/text offset-to-caret rt in-box/1 + 0x3 - rt/offset + layer/offset;60x0
+									at rt/text offset-to-caret rt in-box/2 - 0x3 - rt/offset + layer/offset;60x0
 								either event/ctrl? [
 									tip-text/text: rejoin [type? fn: get :wrd "!^/"]
 									append tip-text/text either any-function? :fn [mold spec-of :fn][help-string :wrd] ; or :fn for non-func? (with scrollers)
