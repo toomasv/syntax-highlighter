@@ -2,7 +2,7 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-02-08
+	Last: 2019-02-09
 	Purpose: {Study of syntax highlighting}
 ]
 starting-pos: length? words-of system/words
@@ -39,7 +39,7 @@ syntax-ctx: context [
 	rt: layer: bs: refine: lns: r-expr: r-def: r-val: none
 	br: scr: s: s1: s2: i: i1: i2: in-brc: pos: bx-pos: str1: str2: blk: res: wheel-pos: len: line-num: needle: none
 	_i1: _i2: _str1: _str2: el: caret: found: found-del: dont-move: ctrl?: deleted: none
-	text-start: text-end: address: fnt: opts: edit: step: btns: tip: tips: expr: none
+	text-start: text-end: address: fnt: opts: edit: step: btns: tip: tips: args: none
 	
 	new-words: none 
 	new-words-in-default-context: clear []
@@ -56,38 +56,123 @@ syntax-ctx: context [
 	last-find: []; act str1 i1 len
 	coef: 1
 
-	open-file: func [file [file! none!]][
-		either file [
-			rt/text: read file
-			lay/text: mold file
-		][
-			rt/text: copy "Red []^/"
-			lay/text: "New file"
-		]
+	open-new: does [
+		if not lay/extra/saved [ask-save] 
+		lay/extra/file: none
+		rt/text: copy "Red []^/"
+		lay/text: "New file"
+		set-caret length? rt/text
 		renew-view
 	]
-	save: func [face [object!] /as /copy /local file][
+	open: func [/local file [file!]][
+		if all [lay/extra/file not lay/extra/saved][ask-save]
+		file: request-file/title/filter "Open file" ["Red" "*.red" "All" "*"]
+		if file [
+			file: second lay/extra/file: split-path file
+			rt/text: read file
+			lay/text: mold file
+			renew-view
+			lay/extra/saved: yes
+		]
+	]
+	save: func [/as /copy /local file [file! none!] curdir [file! none!]][
 		case [
 			copy [
+				curdir: none
+				if lay/extra/file [curdir: lay/extra/file/1]
 				if attempt [file: request-file/save/title "Save copy as"][
 					write file rt/text
+					if all [curdir what-dir <> curdir] [set-current-dir curdir]
 				]
 			]
-			any [as not face/extra] [
+			any [as not lay/extra/file] [
 				if attempt [file: request-file/save/title "Save file as"][
-					face/text: mold second face/extra: split-path file
-					show face 
+					lay/text: mold second lay/extra/file: split-path file
+					show lay 
 					write file rt/text
+					lay/extra/saved: yes
 				]
 			]
 			true [
-				write face/extra/2 rt/text
+				write lay/extra/file/2 rt/text
+				lay/extra/saved: yes
 			]
 		]
 	]
 	set-coef: has [sz][
 		sz: (rich-text/line-count? rt) * (rich-text/line-height? rt 1) 
 		coef: rt/size/y * 1.0 / sz	
+	]
+	ask-save: does [
+		view/flags [
+			text "Save file?" return
+			button "Yes" [save unview]
+			button "No" [unview]
+		] [modal popup]
+	]
+	quit: does [
+		if not lay/extra/saved [ask-save] 
+		unview lay
+	]
+	copy-selection: does [
+		if rt/data/1/y > 0 [write-clipboard copy/part at rt/text rt/data/1/x rt/data/1/y dont-move: true]
+	]
+	cut-selection: does [
+		if rt/data/1/y > 0 [
+			write-clipboard copy/part pos1: at rt/text rt/data/1/x len: rt/data/1/y 
+			remove/part pos1 len
+			lay/extra/saved: no
+			recolor
+			renumber
+			set-caret rt/data/1/x 
+			adjust-scroller
+		]
+	]
+	paste-selection: does [
+		parse txt: read-clipboard [any [change crlf lf | skip]]
+		len: (length? txt) - rt/data/1/y
+		either rt/data/1/y > 0 [
+			change/part at rt/text curpos: rt/data/1/x txt rt/data/1/y 
+		][
+			insert at rt/text curpos txt
+		]
+		lay/extra/saved: no
+		adjust-markers/length pos1 len
+		;show-rt
+		;recolor
+		renumber
+		set-caret curpos + length? txt
+		adjust-scroller
+	]
+	del: func [key][
+		case [
+			rt/data/1/y > 0 [
+				remove/part pos1: at rt/text curpos: rt/data/1/x rt/data/1/y
+				recolor	set-caret curpos
+			]
+			not empty? last-find [
+				remove/part pos1: at rt/text curpos: last-find/3 last-find/4
+				found-del: find rt/data reduce [as-pair last-find/3 last-find/4 'backdrop]
+				found-del: remove/part found-del 3
+				adjust-markers/length/only at rt/text curpos + 1 negate last-find/4
+				if last-find/1 = 'show [deleted: yes]
+			]
+			'else [
+				case [
+					all [key = 'delete curpos <= length? rt/text] [
+						remove pos1: at rt/text curpos
+						recolor
+					]
+					all [key = #"^H" curpos > 1] [
+						remove pos1: at rt/text curpos: curpos - 1
+						recolor	set-caret curpos
+					]
+				]
+				adjust-markers/length pos1 -1
+			]
+		]
+		lay/extra/saved: no
+		renumber
 	]
 	renew-view: does [
 		lns/offset: 0x0
@@ -500,7 +585,7 @@ syntax-ctx: context [
 		lns/data/1/2: 1 + length? lns/text
 	]
 	recolor: has [ofs][
-		text-start: at rt/text offset-to-caret rt ofs: as-pair 60 0 - rt/offset/y
+		text-start: at rt/text offset-to-caret rt ofs: negate rt/offset - layer/offset ;as-pair 60 0 - rt/offset/y
 		text-end: at rt/text offset-to-caret rt ofs + bs/size
 		if pos [move/part pos save-bd length? pos]
 		clear at rt/data 7
@@ -604,58 +689,11 @@ syntax-ctx: context [
 									either found: find/reverse/tail at rt/text curpos lf [index? found][1]
 								]
 							]
-							#"^A" [anchor: 1 curpos: 1 + length? rt/text];Select all
-							#"^C" [;Copy
-								if rt/data/1/y > 0 [write-clipboard copy/part at rt/text rt/data/1/x rt/data/1/y dont-move: true]
-							]
-							#"^X" [;Cut
-								if rt/data/1/y > 0 [
-									write-clipboard copy/part pos1: at rt/text rt/data/1/x len: rt/data/1/y 
-									remove/part pos1 len 
-									recolor
-									renumber
-									set-caret rt/data/1/x 
-								]
-							]
-							#"^V" [;Paste
-								parse txt: read-clipboard [any [change crlf lf | skip]]
-								either rt/data/1/y > 0 [
-									change/part at rt/text curpos: rt/data/1/x txt rt/data/1/y 
-								][
-									insert at rt/text curpos txt
-								]
-								recolor
-								set-caret curpos + length? txt
-							]
-							delete #"^H" [;Delete and backspace
-								case [
-									rt/data/1/y > 0 [
-										remove/part pos1: at rt/text curpos: rt/data/1/x rt/data/1/y
-										recolor	set-caret curpos
-									]
-									not empty? last-find [
-										remove/part pos1: at rt/text curpos: last-find/3 last-find/4
-										found-del: find rt/data reduce [as-pair last-find/3 last-find/4 'backdrop]
-										found-del: remove/part found-del 3
-										adjust-markers/length/only at rt/text curpos + 1 negate last-find/4
-										if last-find/1 = 'show [deleted: yes]
-									]
-									'else [
-										case [
-											all [e/key = 'delete curpos <= length? rt/text] [
-												remove pos1: at rt/text curpos
-												recolor
-											]
-											all [e/key = #"^H" curpos > 1] [
-												remove pos1: at rt/text curpos: curpos - 1
-												recolor	set-caret curpos
-											]
-										]
-										adjust-markers/length pos1 -1
-									]
-								]
-								renumber
-							]
+							#"^A" [anchor: 1 curpos: 1 + length? rt/text] ;Select all
+							#"^C" [copy-selection]
+							#"^X" [cut-selection]
+							#"^V" [paste-selection]
+							delete #"^H" [del e/key] ;Delete and backspace
 							#"^[" [clear pos clear last-find] ;Escape
 							#"^M" [
 								pos1M: any [find/reverse/tail at rt/text curpos newline head rt/text]
@@ -678,13 +716,25 @@ syntax-ctx: context [
 								]
 								curpos: tmppos 
 								show rt
-								replace/all rt/text crlf lf
+								replace/all rt/text crlf lf ; Needed?
+								lay/extra/saved: no
 								adjust-markers/length posM len
 								renumber 
 							]
+							#"^S" [save]
+							#"^O" [open]
+							#"^N" [open-new]
+							#"^Q" [quit]
 						][
-							curpos: index? pos1: insert at rt/text curpos e/key
-							if find opn-brc e/key [insert pos1 opp/(e/key)]
+							curpos: index? pos1: either rt/data/1/y > 0 [
+								len: negate rt/data/1/y - 1
+								change/part at rt/text rt/data/1/x e/key rt/data/1/y 
+							] [
+								len: 1
+								insert at rt/text curpos e/key
+							]
+							if find opn-brc e/key [insert pos1 opp/(e/key) len: 2]
+							lay/extra/saved: no
 							adjust-markers/length pos1 len
 						]
 						adjust-scroller 
@@ -724,6 +774,7 @@ syntax-ctx: context [
 	save-code-back: func [face [object!]][
 		if step/data [
 			change/part at rt/text face/extra/addr/1 face/text face/extra/addr/2
+			lay/extra/saved: no
 			set-caret curpos: _i1: face/extra/addr/1
 			move-backdrop at rt/text _i1
 			recolor
@@ -796,7 +847,7 @@ syntax-ctx: context [
 					origin 0x0 
 					edit: radio 45 "Edit" data yes [clear pos set-focus bs attempt [show lay]]
 					tips: radio 45 "Tips" [set-focus bs cnt: 0 attempt [show lay]]
-					expr: radio 45 "Expr" [set-focus bs cnt: 0 attempt [show lay]]
+					args: radio 45 "Args" [set-focus bs cnt: 0 attempt [show lay]]
 					step: radio 45 "Step" [
 						if 1 = cnt: cnt + 1 [
 							clear pos
@@ -825,6 +876,7 @@ syntax-ctx: context [
 					button "Into" [either all [step/data empty? last-find] [into-step][find-again false]]
 					button "Next" [either all [step/data empty? last-find] [next-step][find-again false]]
 					button "Eval" [if all [step/data empty? last-find] [do-step]]
+					button "Exec" [do rt/text]
 					;button "Construct" [if all [step/data empty? last-find] [construct-step]]
 					button "Construct" [construct-code]
 					button "Recolor" [recolor set-focus bs attempt [show lay]]
@@ -885,7 +937,7 @@ syntax-ctx: context [
 								tip/visible?: no
 								show tip
 							]
-							any [expr/data all [edit/data ctrl?]] [
+							any [args/data all [edit/data ctrl?]] [
 								clear pos 
 								show rt
 							]
@@ -950,7 +1002,7 @@ syntax-ctx: context [
 								show tip
 								'stop
 							]
-							any [expr/data all [edit/data ctrl?]] [if all [str not empty? str] [scope str]]
+							any [args/data all [edit/data ctrl?]] [if all [str not empty? str] [scope str]]
 						]
 					]
 				]
@@ -1092,7 +1144,23 @@ syntax-ctx: context [
 		do [lns/parent: bs rt/parent: bs layer/parent: bs]
 	] [
 		offset: -7x0
-		menu: ["File" ["New" new "Open..." open "Save" save "Save as..." save-as "Save copy..." save-copy]]
+		extra: reduce ['file none 'saved false]
+		menu: [
+			"File" [
+				"New		(^^N)"  new 
+				"Open...	(^^O)"  open 
+				"Save		(^^S)"  save 
+				"Save as..." 		save-as 
+				"Save copy..." 		save-copy 
+				"Quit		(^^Q)"  quit
+			]
+			"Edit" [
+				"Copy		(^^C)"  copy 
+				"Cut		(^^X)"  cut 
+				"Paste		(^^V)"  paste 
+				"Delete		(del)"  del
+			]
+		]
 		actors: object [
 			max-x: max-y: 0
 			cur-y: 10
@@ -1100,11 +1168,18 @@ syntax-ctx: context [
 			opts: options/pane
 			on-menu: func [face [object!] event [event!]][
 				switch event/picked [
-					new [open-file none face/extra: none]
-					open [open-file second face/extra: split-path request-file/title/filter "Open file" ["Red" "*.red" "All" "*"]]
-					save [save face]
-					save-as [save/as face]
-					save-copy [save/copy face]
+					;---File---
+					new [open-new]
+					open [open]
+					save [save]
+					save-as [save/as]
+					save-copy [save/copy]
+					quit [quit]
+					;---Edit---
+					copy [copy-selection]
+					cut [cut-selection]
+					paste [paste-selection]
+					del [del 'delete]
 				]
 			]
 			resize: func [face [object!] event [event!] /local _last diff][
