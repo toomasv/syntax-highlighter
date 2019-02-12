@@ -1,4 +1,6 @@
-Red []
+Red [
+	Description: {Adjusted to work with multilne text}
+]
 red-complete-ctx/complete-input: func [
     str [string!] 
     console? [logic!] 
@@ -8,18 +10,14 @@ red-complete-ctx/complete-input: func [
 ] bind [
     has-common-part?: no 
     result: make block! 4 
-    ;delimiters: [#"^-" #" " #"[" #"(" #":" #"'" #"{"] 
-	delimiters: charset [#"^/" #"^-" #" " #"[" #"(" #":" #"'" #"{"] 
+    delimiters: charset [#"^/" #"^-" #" " #"[" #"(" #":" #"'" #"{"] 
     delim?: no 
     insert?: not tail? str 
     len: (index? str) - 1 
     end: str 
     ptr: head str ;str:
-    ;foreach d delimiters [
-        ;word: find/reverse/tail/part str d len 
-		word: find/reverse/tail/part str delimiters len 
-        if all [word (index? ptr) < (index? word)] [ptr: word]
-    ;] 
+    word: find/reverse/tail/part str delimiters len 
+    if all [word (index? ptr) < (index? word)] [ptr: word]
     either head? ptr [start: head str] [start: ptr delim?: yes] 
     word: copy/part start end 
     unless empty? word [
@@ -59,15 +57,6 @@ red-complete-ctx/complete-input: func [
         if word = result/1 [
             unless has-common-part? [clear result]
         ] 
-        ;unless empty? result [
-        ;    either any [insert? delim?] [
-        ;        str: append copy/part str start result/1 
-        ;        poke result 1 tail str 
-        ;        if insert? [append str end]
-        ;    ] [
-        ;        poke result 1 tail result/1
-        ;    ]
-        ;]
     ] 
     result
 ] red-complete-ctx
