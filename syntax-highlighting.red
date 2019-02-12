@@ -2,7 +2,7 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-02-09
+	Last: 2019-02-12
 	Purpose: {Study of syntax highlighting}
 ]
 starting-pos: length? words-of system/words
@@ -13,6 +13,7 @@ if all [value? 'syntax-ctx attempt [object? syntax-ctx]][
 ]
 #include %info.red
 #include %../../red-latest/red-master/environment/console/help.red
+#include %complete-input.red
 syntax-ctx: context [
 	sys-words: clear []
 	collect/into [
@@ -36,10 +37,11 @@ syntax-ctx: context [
 	skip-chars: charset "#$&"
 	opn-brc: charset "{[(^"" ;"
 	opp: "[][()({}{^"^""
+	delim: charset [#"^/" #"^-" #" " #"[" #"(" #":" #"'" #"{"]
 	rt: layer: bs: refine: lns: r-expr: r-def: r-val: none
 	br: scr: s: s1: s2: i: i1: i2: in-brc: pos: bx-pos: str1: str2: blk: res: wheel-pos: len: line-num: needle: none
 	_i1: _i2: _str1: _str2: el: caret: found: found-del: dont-move: ctrl?: deleted: none
-	text-start: text-end: address: fnt: opts: edit: step: btns: tip: tips: args: none
+	text-start: text-end: address: fnt: opts: edit: step: btns: tip: tips: args: ret: none
 	
 	new-words: none 
 	new-words-in-default-context: clear []
@@ -98,10 +100,6 @@ syntax-ctx: context [
 				lay/extra/saved: yes
 			]
 		]
-	]
-	set-coef: has [sz][
-		sz: (rich-text/line-count? rt) * (rich-text/line-height? rt 1) 
-		coef: rt/size/y * 1.0 / sz	
 	]
 	ask-save: does [
 		view/flags [
@@ -174,6 +172,10 @@ syntax-ctx: context [
 		lay/extra/saved: no
 		renumber
 	]
+	set-coef: has [sz][
+		sz: (rich-text/line-count? rt) * (rich-text/line-height? rt 1) 
+		coef: rt/size/y * 1.0 / sz	
+	]
 	renew-view: does [
 		lns/offset: 0x0
 		rt/offset: 60x0 
@@ -202,9 +204,19 @@ syntax-ctx: context [
 		set-focus bs
 		show lay
 	]
-	highlight: function [s1 [string!] s2 [string!] style [tuple! block!]] bind [keep as-pair i: index? s1 (index? s2) - i keep style] :collect
-	skip-some: func [str [string!] chars [bitset!]][while [find/match str chars][str: next str] str]
-	count-lines: function [cnt-pos [string!]][i: 1 parse head cnt-pos [any [s: if (s = cnt-pos) thru end | newline (i: i + 1) | skip]] i]
+	highlight: function [s1 [string!] s2 [string!] style [tuple! block!]] bind [
+		keep as-pair i: index? s1 (index? s2) - i 
+		keep style
+	] :collect
+	skip-some: func [str [string!] chars [bitset!]][
+		while [find/match str chars][str: next str] 
+		str
+	]
+	count-lines: function [cnt-pos [string!]][
+		i: 1 
+		parse head cnt-pos [any [s: if (s = cnt-pos) thru end | newline (i: i + 1) | skip]] 
+		i
+	]
 	prev-step: does [
 		unless empty? steps [
 			set [_str1 _str2] take/last/part steps 2
@@ -625,6 +637,17 @@ syntax-ctx: context [
 		show rt
 		unless only [recolor]
 	]
+	complete: func [e /local found word new-word file?][
+		unless found: find/reverse/tail at rt/text curpos delim [found: head rt/text]
+		word: copy/part found at rt/text curpos
+		if #"%" = word/1 [word: next word]
+		new-word: pick e/face/data e/face/selected
+		unview
+		found: find/tail new-word either file? [next word][word]
+		len: length? new-word
+		if found [len: len - (length? word)]
+		insert at rt/text curpos either found [found][new-word]
+	]
 	set-caret: func [e [event! none! integer!] /dont-move /only /local found posM pos1M pos2M tmppos line-start brc_][
 		case [
 			event? e [ 
@@ -730,8 +753,21 @@ syntax-ctx: context [
 								len: negate rt/data/1/y - 1
 								change/part at rt/text rt/data/1/x e/key rt/data/1/y 
 							] [
-								len: 1
-								insert at rt/text curpos e/key
+								either all [e/key = 'F1][
+									suggestions: red-complete-ctx/complete-input at rt/text curpos yes
+									view/flags/options/tight compose/only [
+										text-list data (suggestions) focus select 1 
+										on-key-down [case [
+											find [#"^M" #"^-"] event/key [ret: complete event] 
+											event/key = #"^[" [unview len: 0 ret: at rt/text curpos]
+										]]
+										on-dbl-click [ret: complete event]
+									][modal no-border][offset: (caret-to-offset rt curpos) + rt/offset + lay/offset + bs/offset + 0x20]
+									ret
+								][
+									len: 1
+									insert at rt/text curpos e/key
+								]
 							]
 							if find opn-brc e/key [insert pos1 opp/(e/key) len: 2]
 							lay/extra/saved: no
@@ -813,7 +849,7 @@ syntax-ctx: context [
 	]
 	__explore-ctx__: none
 	construct-code: has [loaded s e rule __current-ctx__ stack][
-		probe __explore-ctx__: construct skip loaded: load rt/text 2
+		__explore-ctx__: construct skip loaded: load rt/text 2
 		__current-ctx__: __explore-ctx__
 		stack: clear []
 		parse loaded rule: [
