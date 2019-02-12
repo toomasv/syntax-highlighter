@@ -3,8 +3,7 @@ Red syntax/expressions highligting
 
 ## Usage and limitations
 1. Expressions highlighting works by default for predefined functions only. If UDF is evaluated in step mode, highlighting will work on these too (They are evaluated in default context; in-object evaluation TBD)
-2. `op!` scope is correctly found when treated as argument. Arguments highlighting for `op!` itself (in "Expr" mode) is TBD
-  - Partly done 17.01 (Left nested parens TBD)
+2. `op!` scope is correctly found when treated as argument. Arguments highlighting for `op!` itself (in "Expr" mode) is partly done 17.01 (Left nested parens TBD)
 3. Highlighting does not adapt to dialects (e.g. parse, VID, RTD). TBD
 4. Editing:
   - First version 24.01
