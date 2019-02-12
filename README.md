@@ -12,6 +12,7 @@ Red syntax/expressions highligting
   - Selection with keys, double-click, shift-click
   - Selection by dragging TBD
   - Automatic tabbing, line numbering added 2.02
+  - Auto-completion with F1 12.02
 5. Resizing:
   - First version done 18.01
 6. No error-handling. TBD
