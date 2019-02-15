@@ -2,7 +2,7 @@ Red [
 	Needs: 'View
 	Author: "Toomas Vooglaid"
 	Date: 2019-01-14
-	Last: 2019-02-12
+	Last: 2019-02-15
 	Purpose: {Study of syntax highlighting}
 ]
 starting-pos: length? words-of system/words
@@ -494,8 +494,6 @@ syntax-ctx: context [
 			scr/position: max 1 line-num - either start [0][scr/page-size / 3]
 			scr/page: scr/position - 1 / scr/page-size + 1
 			scroll scr/position
-			;lns/offset/y: rt/offset/y: to-integer negate (scr/position - 1) * (rich-text/line-height? rt 1) * coef
-			;recolor
 		]
 		set-focus bs
 		show lay
@@ -637,13 +635,13 @@ syntax-ctx: context [
 		show rt
 		unless only [recolor]
 	]
-	complete: func [e /local found word new-word file?][
+	complete: func [e /local found word new-word][
 		unless found: find/reverse/tail at rt/text curpos delim [found: head rt/text]
 		word: copy/part found at rt/text curpos
 		if #"%" = word/1 [word: next word]
 		new-word: pick e/face/data e/face/selected
 		unview
-		found: find/tail new-word either file? [next word][word]
+		found: find/tail new-word word
 		len: length? new-word
 		if found [len: len - (length? word)]
 		insert at rt/text curpos either found [found][new-word]
@@ -769,7 +767,7 @@ syntax-ctx: context [
 									insert at rt/text curpos e/key
 								]
 							]
-							if find opn-brc e/key [insert pos1 opp/(e/key) len: 2]
+							if attempt [find opn-brc e/key] [insert pos1 opp/(e/key) len: 2]
 							lay/extra/saved: no
 							adjust-markers/length pos1 len
 						]
