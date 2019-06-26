@@ -4,6 +4,7 @@ Red [
 	Date: 2019-01-14
 	Last: 2019-02-15
 	Purpose: {Study of syntax highlighting}
+	Licence: "MIT"
 ]
 starting-pos: length? words-of system/words
 if all [value? 'syntax-ctx attempt [object? syntax-ctx]][
