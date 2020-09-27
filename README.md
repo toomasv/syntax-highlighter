@@ -1,5 +1,5 @@
 # syntax-highlighter
-Red syntax/expressions highligting
+Red syntax/expressions highlighting
 
 ## Usage and limitations
 1. Expressions highlighting works by default for predefined functions only. If UDF is evaluated in step mode, highlighting will work on these too (They are evaluated in default context; in-object evaluation TBD)
