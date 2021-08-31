@@ -1,3 +1,5 @@
+(Not updated for a long time. May be broken)
+
 # syntax-highlighter
 Red syntax/expressions highlighting
 
